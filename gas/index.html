@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --pass: #1b8a5a; --pass-bg: #e4f5ec;
+    --fail: #c6303e; --fail-bg: #fdeaec;
+    --ink: #1f2933; --sub: #616e7c; --line: #d5dbe1; --give: #6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", sans-serif;
+    color: var(--ink); background: #f7f8f9;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  body.mode-pass { background: var(--pass-bg); }
+  body.mode-fail { background: var(--fail-bg); }
+
+  #materialBar { padding: 10px 16px; background: #263238; color: #fff;
+    display: flex; align-items: center; gap: 10px; }
+  #materialBar .info { flex: 1; }
+  #materialBar .cap { font-size: 12px; opacity: .7; }
+  #materialName { font-size: 19px; font-weight: bold; }
+  #btnNotify { padding: 8px 10px; font-size: 13px; border-radius: 8px;
+    border: 1px solid #fff; background: transparent; color: #fff; }
+  #btnNotify:disabled { opacity: .3; }
+
+  #modeBanner { text-align: center; font-size: 21px; font-weight: bold;
+    color: #fff; padding: 11px; background: var(--sub); }
+  body.mode-pass #modeBanner { background: var(--pass); }
+  body.mode-fail #modeBanner { background: var(--fail); }
+
+  main { flex: 1; padding: 12px 16px; max-width: 560px; width: 100%; margin: 0 auto; }
+  #reader { width: 100%; border-radius: 12px; overflow: hidden;
+    background: #000; display: none; }
+  #reader.on { display: block; }
+
+  .row { display: flex; gap: 8px; margin: 10px 0; }
+  #hwInput { flex: 1; font-size: 18px; padding: 12px;
+    border: 2px solid var(--line); border-radius: 10px; }
+  #hwInput:focus { border-color: #263238; outline: none; }
+  button { font-family: inherit; cursor: pointer; }
+  .ghost { padding: 12px 14px; font-size: 15px; border: 2px solid var(--line);
+    background: #fff; border-radius: 10px; color: var(--ink); }
+
+  #result { min-height: 84px; margin-top: 6px; padding: 14px; border-radius: 12px;
+    background: #fff; border: 2px solid var(--line); font-size: 17px; line-height: 1.5; }
+  #result .big { font-size: 26px; font-weight: bold; }
+  #result.pass { border-color: var(--pass); }
+  #result.fail { border-color: var(--fail); }
+  #result.err  { border-color: #e6a800; background: #fff8e5; }
+
+  #history { margin-top: 10px; font-size: 14px; color: var(--sub); }
+  #history div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+
+  footer { position: sticky; bottom: 0; background: #fff;
+    border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  #modes { display: flex; gap: 8px; max-width: 560px; margin: 0 auto;
+    flex-wrap: wrap; }
+  .modeBtn {
+    flex: 1; min-width: 64px; font-size: 21px; font-weight: bold; padding: 20px 0;
+    border-radius: 14px; border: 3px solid transparent; color: #fff; opacity: .45;
+  }
+  .modeBtn.pass { background: var(--pass); }
+  .modeBtn.fail { background: var(--fail); }
+  .modeBtn.active { opacity: 1; border-color: #263238; }
+  #editRow { display: flex; gap: 8px; max-width: 560px; margin: 8px auto 0; }
+  #btnUndo, #btnRedo { flex: 1;
+    padding: 12px 0; font-size: 16px; font-weight: bold;
+    background: #fff; border: 2px solid #263238; border-radius: 10px; }
+  #btnUndo:disabled, #btnRedo:disabled { opacity: .35; }
+
+  /* ===== 画面切替タブ(スキャン / 一覧) ===== */
+  #scanView { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  /* 設定シート「表示名」(例: 〇〇中学校 R7入学生)。空なら出さない */
+  #appName { display: none; background: #1a2226; color: #cfd8dc; font-size: 13px;
+    font-weight: bold; padding: 6px 16px 0; }
+  #appName.on { display: block; }
+  #viewTabs { display: flex; gap: 8px; padding: 8px 16px; background: #1a2226; }
+  #viewTabs button { flex: 1; padding: 11px 0; font-size: 15px; font-weight: bold;
+    border-radius: 10px; border: 2px solid transparent; background: #33424a; color: #cfd8dc; }
+  #viewTabs button.active { background: #fff; color: #263238; border-color: #fff; }
+
+  /* ===== 一覧画面(未提出・再提出リスト) ===== */
+  #listView { display: none; flex: 1; flex-direction: column; }
+  #listView.on { display: flex; }
+  #listFilters { padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #listFilters select {
+    flex: 1; min-width: 88px; font-size: 14px; padding: 9px 8px;
+    border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
+  /* 締切の絞り込み(未提出リスト・教材タブ共通)。期間指定のときだけ日付欄を出す */
+  .dueRange { display: none; align-items: center; gap: 4px; font-size: 13px; }
+  .dueRange.on { display: flex; }
+  .dueRange input { font-size: 14px; padding: 7px 6px; border: 1px solid var(--line);
+    border-radius: 8px; font-family: inherit; }
+  #btnListRefresh { padding: 9px 12px; font-size: 14px; border-radius: 8px;
+    border: 2px solid #263238; background: #263238; color: #fff; font-family: inherit; }
+  #listSummary { padding: 8px 16px; font-size: 13px; color: var(--sub); background: #fff;
+    border-bottom: 1px solid var(--line); }
+  #listResults { flex: 1; overflow-y: auto; padding: 12px 16px 32px; max-width: 560px;
+    width: 100%; margin: 0 auto; }
+  .matCard { background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 12px; overflow: hidden; }
+  .matCard .hd { padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+  .matCard .hd .ttl { flex: 1; font-size: 15px; font-weight: bold; }
+  .matCard .hd .sub { font-size: 12px; color: var(--sub); }
+  .matCard .hd .due { font-size: 12px; color: var(--fail); font-weight: bold; }
+  .matCard button.notify { font-size: 12px; padding: 6px 9px; border-radius: 7px;
+    border: 1px solid var(--line); background: #fff; color: var(--sub); font-family: inherit; }
+  .stuRow { display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+    border-top: 1px solid #eef0f2; font-size: 14px; }
+  .stuRow .gk { color: var(--sub); font-size: 12px; width: 84px; flex-shrink: 0; }
+  .stuRow .nm { flex: 1; }
+  .stuRow .pill2 { font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 999px;
+    color: #fff; white-space: nowrap; }
+  .stuRow .pill2.ng  { background: var(--fail); }
+  .stuRow .pill2.wt  { background: #8a6d1b; }
+  .stuRow .pill2.gv  { background: var(--give); }
+  .stuRow .bd { font-size: 11px; color: var(--fail); margin-left: 6px; white-space: nowrap; }
+  #listEmpty { text-align: center; color: var(--sub); padding: 40px 12px; font-size: 14px; }
+
+  /* ===== 教材タブ(v6.8〜) ===== */
+  #matView { display: none; flex: 1; flex-direction: column; }
+  #matView.on { display: flex; }
+  #mvBar { padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #mvBar select { flex: 1; min-width: 88px; font-size: 14px; padding: 9px 8px;
+    border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
+  #mvBar label { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+  #btnMvNew { padding: 9px 12px; font-size: 14px; font-weight: bold; border-radius: 8px;
+    border: 2px solid var(--pass); background: var(--pass); color: #fff; font-family: inherit; }
+  #btnMvPrint { padding: 9px 12px; font-size: 14px; font-weight: bold; border-radius: 8px;
+    border: 2px solid #263238; background: #fff; color: #263238; font-family: inherit; }
+  #mvNote { padding: 0 16px; font-size: 12px; color: #8a6d1b; background: #fff8e5; }
+  #mvNote:not(:empty) { padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  #mvBody { flex: 1; overflow-y: auto; padding: 12px 16px 32px; max-width: 560px;
+    width: 100%; margin: 0 auto; }
+  #mvForm { display: none; background: #fff; border: 2px solid #263238; border-radius: 12px;
+    padding: 14px; margin-bottom: 14px; }
+  #mvForm.on { display: block; }
+  #mvForm h3 { font-size: 16px; margin-bottom: 10px; }
+  .fRow { margin-bottom: 10px; }
+  .fRow > .cap { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+  .fRow input[type=text], .fRow input[type=date], .fRow select, .fRow textarea {
+    width: 100%; font-size: 15px; padding: 9px 8px; border: 1px solid var(--line);
+    border-radius: 8px; font-family: inherit; }
+  .fRow input:disabled, .fRow select:disabled { background: #eef0f2; color: var(--sub); }
+  .fRow textarea { min-height: 84px; }
+  /* 教材名の候補。datalistはブラウザ任せで4件ほどしか出ないため自前で出す(約8件分の高さ) */
+  .sugWrap { position: relative; }
+  #fNameSug { display: none; position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
+    max-height: 320px; overflow-y: auto; background: #fff; border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); margin-top: 2px; }
+  #fNameSug.on { display: block; }
+  #fNameSug div { padding: 9px 12px; font-size: 15px; cursor: pointer;
+    border-bottom: 1px solid #eef0f2; }
+  #fNameSug div:hover { background: #eef0f2; }
+  #fNameSug .other { color: var(--sub); }
+  #fAbbrHint { font-size: 12px; color: var(--sub); margin-top: 4px; line-height: 1.7; }
+  #fAbbrHint b { color: var(--ink); font-family: monospace; }
+  #fAbbrHint .other { opacity: .7; }
+  #fAbbrWarn:not(:empty) { font-size: 12px; color: var(--fail); margin-top: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips label { font-size: 14px; display: flex; align-items: center; gap: 4px;
+    padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; }
+  .chips button { font-size: 12px; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: #f7f8f9; font-family: inherit; }
+  .fWarn { font-size: 12px; color: var(--fail); background: var(--fail-bg);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; line-height: 1.6; }
+  .fBtns { display: flex; gap: 8px; margin-top: 12px; }
+  .fBtns button { flex: 1; padding: 11px 0; font-size: 15px; font-weight: bold;
+    border-radius: 10px; font-family: inherit; }
+  #btnMvSave { border: 2px solid var(--pass); background: var(--pass); color: #fff; }
+  #btnMvCancel { border: 2px solid var(--line); background: #fff; }
+  #btnMvDelete { border: 2px solid var(--fail); background: #fff; color: var(--fail); }
+  #mvMsg:not(:empty) { background: var(--pass-bg); border: 1px solid var(--pass);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; line-height: 1.6; }
+  #mvMsgX { float: right; cursor: pointer; color: var(--sub); padding: 0 4px; font-size: 16px; }
+  .mvCard { background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 10px; }
+  .mvCard .top { display: flex; align-items: baseline; gap: 8px; }
+  .mvCard .ttl { flex: 1; font-size: 15px; font-weight: bold; }
+  .mvCard .code { font-size: 12px; color: var(--sub); font-family: monospace; }
+  .mvCard .sub { font-size: 12px; color: var(--sub); margin-top: 3px; line-height: 1.6; }
+  .mvCard .bot { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
+  .mvCard .tag { padding: 2px 7px; border-radius: 999px; background: #eef0f2; color: var(--sub); }
+  .mvCard .grow { flex: 1; color: var(--sub); }
+  .mvCard button { font-size: 13px; padding: 6px 12px; border-radius: 7px;
+    border: 1px solid #263238; background: #fff; font-family: inherit; }
+</style>
+</head>
+<body>
+
+  <div id="appName"></div>
+  <div id="viewTabs">
+    <button id="tabScan" class="active">📷 スキャン</button>
+    <button id="tabList">📋 未提出・再提出リスト</button>
+    <button id="tabMat">📚 教材</button>
+  </div>
+
+  <div id="scanView">
+  <div id="materialBar">
+    <div class="info">
+      <div class="cap">読み取り中の教材(教材QRを読むと切替)</div>
+      <div id="materialName">未選択 - まず教材QRを読んでください</div>
+    </div>
+    <button id="btnTestBeep" style="font-size:12px;padding:6px 8px;margin-right:6px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff">🔊音テスト</button>
+    <button id="btnNotify" disabled>📣 Classroom<br>通知</button>
+  </div>
+
+  <div id="modeBanner">教材を選ぶと評価ボタンが表示されます</div>
+
+  <main>
+    <div id="reader"></div>
+    <div class="row">
+      <!-- inputmode="none": スマホで自動フォーカスのたびに画面キーボードが出るのを防ぐ。
+           ハンディリーダー(USB/Bluetooth)の入力はそのまま受け付ける -->
+      <input id="hwInput" type="text" autocomplete="off" inputmode="none"
+             placeholder="ハンディリーダーはここに読み取り(自動フォーカス)">
+      <button class="ghost" id="btnCam">📷 カメラ</button>
+      <button class="ghost" id="btnPhoto">📸 写真で<br>読み取り</button>
+      <input id="photoIn" type="file" accept="image/*" capture="environment"
+             style="display:none">
+    </div>
+    <div id="result">ここに読み取り結果が表示されます</div>
+    <div id="history"></div>
+  </main>
+
+  <footer>
+    <div id="modes"></div>
+    <div id="editRow">
+      <button id="btnUndo" disabled>⟲ 取り消す(UNDO)</button>
+      <button id="btnRedo" disabled>⟳ 戻す(REDO)</button>
+    </div>
+  </footer>
+  </div><!-- /scanView -->
+
+  <div id="listView">
+    <div id="listFilters">
+      <select id="lfGrade"><option value="">学年: すべて</option></select>
+      <select id="lfCls"><option value="">組: すべて</option></select>
+      <select id="lfSubject"><option value="">教科: すべて</option></select>
+      <select id="lfName"><option value="">教材名: すべて</option></select>
+      <select id="lfRange"><option value="">範囲: すべて</option></select>
+      <select id="lfDue" class="dueSel"></select>
+      <span class="dueRange" id="lfDueRange">
+        <input type="date" id="lfDueFrom">〜<input type="date" id="lfDueTo"></span>
+      <label style="font-size:13px;display:flex;align-items:center;gap:4px">
+        <input type="checkbox" id="lfClosed">受付終了も表示</label>
+      <button id="btnListRefresh">🔄 更新</button>
+    </div>
+    <div id="listSummary">条件を選ぶと自動で表示されます</div>
+    <div id="listResults"></div>
+  </div>
+
+  <div id="matView">
+    <div id="mvBar">
+      <select id="mvGrade"><option value="">学年: すべて</option></select>
+      <select id="mvSubject"><option value="">教科: すべて</option></select>
+      <select id="mvName"><option value="">教材名: すべて</option></select>
+      <select id="mvDue"></select>
+      <span class="dueRange" id="mvDueRange">
+        <input type="date" id="mvDueFrom">〜<input type="date" id="mvDueTo"></span>
+      <label><input type="checkbox" id="mvMine">自分が登録した教材だけ</label>
+      <label><input type="checkbox" id="mvClosed" checked>受付終了も表示</label>
+      <button id="btnMvPrint">🖨 QRラベル印刷</button>
+      <button id="btnMvNew">＋ 新しい教材</button>
+    </div>
+    <div id="mvNote"></div>
+    <div id="mvBody">
+      <div id="mvMsg"></div>
+      <div id="mvForm">
+        <h3 id="fTitle">新しい教材</h3>
+        <div class="fRow"><div class="cap">教科 *</div>
+          <select id="fSubject"></select></div>
+        <div class="fRow"><div class="cap">教材名 *</div>
+          <div class="sugWrap">
+            <input type="text" id="fName" autocomplete="off">
+            <div id="fNameSug"></div>
+          </div></div>
+        <div class="fRow"><div class="cap">教材名略称 *(半角英数。教材コードに使います。登録後は変更できません。教材名を入れると推奨・使用中の略称が自動で入ります)</div>
+          <input type="text" id="fAbbr" autocomplete="off" autocapitalize="characters">
+          <div id="fAbbrWarn"></div>
+          <div id="fAbbrHint"></div></div>
+        <div class="fRow" id="fRangesRow"><div class="cap">範囲(1行に1つ。複数書くとその数だけ登録されます。空欄なら範囲なしで1件)</div>
+          <textarea id="fRanges" placeholder="p.1〜5&#10;p.6〜10&#10;p.11〜15"></textarea></div>
+        <div class="fRow" id="fRangeRow"><div class="cap">範囲</div>
+          <input type="text" id="fRange" autocomplete="off"></div>
+        <div class="fRow"><div class="cap">学年(選ばなければ全学年)</div>
+          <div class="chips" id="fGrades"></div></div>
+        <div class="fRow"><div class="cap">対象組(選ばなければ全組)</div>
+          <div class="chips" id="fClasses"></div></div>
+        <div class="fRow"><div class="cap">提出期限(空欄可)</div>
+          <input type="date" id="fDue"></div>
+        <div class="fRow"><div class="cap">評価ラベル *(カンマ区切り。先頭が最良・既定)</div>
+          <div class="chips" style="margin-bottom:6px">
+            <button type="button" data-l="合格,再提出" data-f="再提出">合格,再提出</button>
+            <button type="button" data-l="5,4,3,2,1" data-f="2,1">5,4,3,2,1</button>
+            <button type="button" data-l="A,B,C" data-f="C">A,B,C</button>
+          </div>
+          <input type="text" id="fLabels" autocomplete="off"></div>
+        <div class="fRow"><div class="cap">再提出扱いにする評価(赤表示・通知の対象)</div>
+          <div class="chips" id="fFails"></div></div>
+        <div class="fRow chips">
+          <label><input type="checkbox" id="fDaily">📅 毎日集める教材</label>
+          <label id="fClosedWrap"><input type="checkbox" id="fClosed">🔒 受付終了</label>
+        </div>
+        <div class="fWarn" id="fWarn" style="display:none"></div>
+        <div class="fBtns">
+          <button id="btnMvSave">登録</button>
+          <button id="btnMvCancel">キャンセル</button>
+          <button id="btnMvDelete">削除</button>
+        </div>
+      </div>
+      <div id="mvList"></div>
+    </div>
+  </div>
+
+  <div id="verTag" style="text-align:center;font-size:11px;color:#9aa5ad;padding:4px"></div>
+
+<script>
+/* ===== 状態 ===== */
+let material = null;        // {code, name, subject, labels[], fails[]}
+let currentLabel = null;    // 選択中の評価値
+let undoStack = [];
+let redoStack = [];
+let lastScan = {};
+let busy = false;
+let scanner = null, camOn = false;
+const DUP_MS = 3000;
+
+/* ===== 効果音 ===== */
+const AC = window.AudioContext || window.webkitAudioContext;
+let audio = null;
+function beep(kind) {
+  if (!audio) audio = new AC();
+  const play = () => {
+    if (kind === 'fail') {
+      // 不合格音: 矩形波(耳に付きやすい)の連続ビープ。正弦波より確実に聞こえる
+      let t = audio.currentTime;
+      for (let i = 0; i < 3; i++) {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = 'square'; o.frequency.value = 480;
+        o.connect(g); g.connect(audio.destination);
+        g.gain.setValueAtTime(.001, t);
+        g.gain.exponentialRampToValueAtTime(.45, t + .01);
+        g.gain.exponentialRampToValueAtTime(.001, t + .13);
+        o.start(t); o.stop(t + .14);
+        t += .17;
+      }
+      return;
+    }
+    const seq = kind === 'pass' ? [[880,.09],[1320,.12]] : [[440,.08],[440,.08]];
+    let t = audio.currentTime;
+    seq.forEach(([f, d]) => {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+      g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
+      o.start(t); o.stop(t + d); t += d + .03;
+    });
+  };
+  // カメラアプリから戻った直後などは音声が一時停止状態になっていることが
+  // あるため、再開してから鳴らす(これが写真読み取りで無音だった原因)
+  if (audio.state === 'suspended') {
+    audio.resume().then(play).catch(() => {});
+  } else {
+    play();
+  }
+}
+
+/* ===== 評価ボタンを教材に合わせて動的生成 ===== */
+function renderModeButtons() {
+  const box = document.getElementById('modes');
+  box.innerHTML = '';
+  if (!material) return;
+  material.labels.forEach(label => {
+    const isFail = material.fails.indexOf(label) !== -1;
+    const b = document.createElement('button');
+    b.className = 'modeBtn ' + (isFail ? 'fail' : 'pass');
+    b.textContent = label;
+    b.onclick = () => setLabel(label);
+    b.dataset.label = label;
+    box.appendChild(b);
+  });
+  // 既定は先頭(いちばん良い評価)を選択
+  setLabel(material.labels[0]);
+}
+
+function setLabel(label) {
+  currentLabel = label;
+  const isFail = material.fails.indexOf(label) !== -1;
+  document.body.className = isFail ? 'mode-fail' : 'mode-pass';
+  document.querySelectorAll('.modeBtn').forEach(b =>
+    b.classList.toggle('active', b.dataset.label === label));
+  document.getElementById('modeBanner').textContent =
+    (isFail ? '✗' : '✓') + ' 「' + label + '」として記録中';
+  focusHW();
+}
+
+/* ===== 表示ヘルパ ===== */
+function show(cls, html) {
+  const r = document.getElementById('result');
+  r.className = cls; r.innerHTML = html;
+}
+function pushHistory(text) {
+  const h = document.getElementById('history');
+  const d = document.createElement('div');
+  d.textContent = text;
+  h.prepend(d);
+  while (h.children.length > 8) h.removeChild(h.lastChild);
+}
+function focusHW() { document.getElementById('hwInput').focus(); }
+
+/* ===== スキャン入口(カメラ・リーダー共通) ===== */
+function onScan(code, opts) {
+  code = String(code).trim();
+  if (!code || busy) return;
+  const now = Date.now();
+  // 3秒ルール(二重読み取り防止)。写真読み取りは「撮影→確認」という
+  // 意図的な操作を挟むため免除する(skipDup)
+  if (!(opts && opts.skipDup)) {
+    if (lastScan[code] && now - lastScan[code] < DUP_MS) return;
+  }
+  lastScan[code] = now;
+  busy = true;
+  if (code.startsWith('S-')) recordStudent(code);
+  else switchMaterial(code);
+}
+
+function switchMaterial(code) {
+  google.script.run
+    .withSuccessHandler(m => {
+      busy = false;
+      if (m) {
+        material = m;
+        document.getElementById('materialName').textContent =
+          m.subject + '/' + m.name + (m.daily ? ' 📅毎日' : '');
+        document.getElementById('btnNotify').disabled = false;
+        renderModeButtons();
+        show('', '教材を「' + m.name + '」に切り替えました(評価: ' + m.labels.join(' / ') +
+                  ')' + (m.daily ? ' - 毎日提出の教材です(今日の分を記録します)' : ''));
+        beep('notice');
+      } else {
+        show('err', '⚠ 登録されていないコードです: ' + code);
+        beep('notice');
+      }
+      focusHW();
+    })
+    .withFailureHandler(e => { busy = false; show('err', '⚠ 通信エラー: ' + e.message); })
+    .lookupMaterial(code);
+}
+
+function recordStudent(id) {
+  if (!material || !currentLabel) {
+    busy = false;
+    show('err', '⚠ 先に教材QRを読んでください');
+    beep('notice');
+    return;
+  }
+  // 合否は教材情報から手元で分かるので、サーバーを待たずに即座に音と表示を出す
+  // (次の生徒の撮影にすぐ移れる。氏名はサーバー応答後に差し替わる)
+  const isFail = material.fails.indexOf(currentLabel) !== -1;
+  beep(isFail ? 'fail' : 'pass');
+  show(isFail ? 'fail' : 'pass',
+    '<span class="big">' + (isFail ? '✗' : '✓') + ' ' + id + '</span><br>' +
+    '評価「' + currentLabel + '」で記録中...');
+  const tSend = Date.now();
+  const decodeMs = window.__lastDecodeMs || null;
+  window.__lastDecodeMs = null; // 次のスキャン(リーダー等)に持ち越さない
+
+  google.script.run
+    .withSuccessHandler(res => {
+      busy = false;
+      if (!res.ok) { show('err', '⚠ ' + res.error); beep('notice'); focusHW(); return; }
+      undoStack.push(res);
+      refreshEditButtons();
+      const netSec = ((Date.now() - tSend) / 1000).toFixed(1);
+      const timing = (decodeMs !== null)
+        ? '<br><span style="font-size:12px;color:#888">読取 ' +
+          (decodeMs / 1000).toFixed(1) + '秒 / 通信 ' + netSec + '秒</span>'
+        : '';
+      show(res.isFail ? 'fail' : 'pass',
+        '<span class="big">' + (res.isFail ? '✗' : '✓') + ' ' + res.name + '</span><br>' +
+        res.cls + ' - 評価「' + res.label + '」(' + res.nth + '回目)' + timing);
+      pushHistory(res.cls + ' ' + res.name + ' → ' + res.label);
+      focusHW();
+    })
+    .withFailureHandler(e => { busy = false; show('err', '⚠ 通信エラー: ' + e.message); beep('notice'); })
+    .recordScan(id, material.code, currentLabel);
+}
+
+/* ===== UNDO / REDO ===== */
+function refreshEditButtons() {
+  document.getElementById('btnUndo').disabled = undoStack.length === 0;
+  document.getElementById('btnRedo').disabled = redoStack.length === 0;
+}
+
+document.getElementById('btnUndo').onclick = () => {
+  const last = undoStack.pop();
+  if (!last) return;
+  document.getElementById('btnUndo').disabled = true;
+  google.script.run
+    .withSuccessHandler(res => {
+      redoStack.push(last);            // UNDOした分はREDOで復活できる
+      refreshEditButtons();
+      show('', '⟲ 取り消しました: ' + res.name + '(' + res.judge + ')' +
+               ' - 行きすぎたら⟳REDOで戻せます');
+      pushHistory('⟲ 取消 ' + res.name);
+      beep('notice');
+      focusHW();
+    })
+    .withFailureHandler(e => {
+      undoStack.push(last);            // 失敗したら積み直す
+      refreshEditButtons();
+      show('err', '⚠ 取消に失敗: ' + e.message);
+    })
+    .cancelRow(last.row);
+};
+
+document.getElementById('btnRedo').onclick = () => {
+  const last = redoStack.pop();
+  if (!last) return;
+  document.getElementById('btnRedo').disabled = true;
+  google.script.run
+    .withSuccessHandler(res => {
+      undoStack.push(last);            // 復活した分は再びUNDO可能
+      refreshEditButtons();
+      show('', '⟳ 記録を戻しました: ' + res.name + '(' + res.judge + ')');
+      pushHistory('⟳ 復活 ' + res.name);
+      beep('notice');
+      focusHW();
+    })
+    .withFailureHandler(e => {
+      redoStack.push(last);
+      refreshEditButtons();
+      show('err', '⚠ 復活に失敗: ' + e.message);
+    })
+    .restoreRow(last.row);
+};
+
+/* ===== Classroom通知 ===== */
+document.getElementById('btnNotify').onclick = () => {
+  if (!material) return;
+  google.script.run
+    .withSuccessHandler(pre => {
+      if (!pre.ok) { show('err', '⚠ ' + pre.error); return; }
+      if (!pre.targets.length) { show('', '「' + pre.material + '」の再提出者はいません'); return; }
+      const names = pre.targets.map(t => t.cls + ' ' + t.name).join('\n');
+      const dateNote = pre.daily ? '(' + pre.date + '分)' : '';
+      if (!confirm('「' + pre.material + '」' + dateNote + 'の再提出者 ' + pre.targets.length +
+                   '名にClassroom通知を送ります。\n\n' + names + '\n\nよろしいですか?')) return;
+      google.script.run
+        .withSuccessHandler(out => {
+          show(out.ok ? '' : 'err',
+            out.ok ? '📣 ' + out.sent + '名に通知しました' : '⚠ ' + out.error);
+        })
+        .withFailureHandler(e => show('err', '⚠ 通知に失敗: ' + e.message))
+        .sendClassroomNotice(material.code);
+    })
+    .withFailureHandler(e => show('err', '⚠ ' + e.message))
+    .getResubmitList(material.code);
+};
+
+/* ===== ハードウェアリーダー ===== */
+const hw = document.getElementById('hwInput');
+hw.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = hw.value; hw.value = '';
+    onScan(v);
+    e.preventDefault();
+  }
+});
+
+/* ===== カメラ ===== */
+document.getElementById('btnCam').onclick = async () => {
+  const box = document.getElementById('reader');
+  if (camOn) {
+    await scanner.stop(); box.classList.remove('on'); camOn = false;
+    document.getElementById('btnCam').textContent = '📷 カメラ';
+    focusHW();
+    return;
+  }
+  scanner = new Html5Qrcode('reader');
+  box.classList.add('on');
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      text => onScan(text)
+    );
+    camOn = true;
+    document.getElementById('btnCam').textContent = '⏹ 停止';
+  } catch (err) {
+    box.classList.remove('on');
+    show('err', '⚠ カメラを起動できません: ' + err);
+  }
+};
+
+/* ===== 写真で読み取り(ライブカメラが使えない端末向け) =====
+   GASアプリは内側フレームで動くため、端末によっては getUserMedia
+   (ライブカメラ)が権限委譲の問題でブロックされる。
+   この方式は標準カメラアプリで撮影→静止画から解読するため、
+   その制約を受けない。 */
+const photoIn = document.getElementById('photoIn');
+document.getElementById('btnPhoto').onclick = () => {
+  // ボタンタップ(=確実なユーザー操作)の時点で音声を起動・再開しておく。
+  // カメラアプリから戻った後でも音が許可された状態を保つため
+  if (!audio) audio = new AC();
+  if (audio.state === 'suspended') audio.resume().catch(() => {});
+  photoIn.click();
+};
+/** 画像ファイルを指定の最大辺サイズに縮小してcanvasに描く */
+async function _drawScaled(file, maxSide) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  return canvas;
+}
+
+/** canvasからQRを解読。端末内蔵のBarcodeDetector(高速)を優先し、
+    無ければHtml5Qrcodeにフォールバック */
+async function _decodeCanvas(canvas) {
+  if ('BarcodeDetector' in window) {
+    try {
+      const det = new BarcodeDetector({ formats: ['qr_code'] });
+      const found = await det.detect(canvas);
+      if (found.length) return found[0].rawValue;
+    } catch (e) { /* 非対応・失敗時はフォールバックへ */ }
+  }
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+  const q = new Html5Qrcode('reader');
+  return await q.scanFile(new File([blob], 'scan.jpg', { type: 'image/jpeg' }), false);
+}
+
+photoIn.addEventListener('change', async () => {
+  const file = photoIn.files && photoIn.files[0];
+  photoIn.value = '';
+  if (!file) return;
+  show('', '読み取り中...');
+  try {
+    if (camOn) { await scanner.stop(); camOn = false;
+      document.getElementById('reader').classList.remove('on');
+      document.getElementById('btnCam').textContent = '📷 カメラ'; }
+    // まず1000pxに縮小して高速に解読を試み、失敗したら1800pxで再挑戦
+    // (カメラ元画像は数千pxあり、そのまま解析すると数秒かかるため)
+    const tDecode = Date.now();
+    let text = null;
+    for (const size of [1000, 1800]) {
+      try {
+        text = await _decodeCanvas(await _drawScaled(file, size));
+        if (text) break;
+      } catch (e) { /* 次のサイズで再挑戦 */ }
+    }
+    if (!text) throw new Error('decode failed');
+    window.__lastDecodeMs = Date.now() - tDecode;
+    onScan(text, { skipDup: true });
+  } catch (err) {
+    show('err', '⚠ QRを読み取れませんでした。QR全体が写るように、明るい場所でもう一度撮影してください');
+    beep('notice');
+  }
+});
+
+document.getElementById('btnTestBeep').onclick = () => {
+  if (!audio) audio = new AC();
+  if (audio.state === 'suspended') audio.resume().catch(() => {});
+  beep('pass');
+  setTimeout(() => beep('fail'), 700);
+};
+
+focusHW();
+google.script.run.withSuccessHandler(v => {
+  document.getElementById('verTag').textContent = v;
+}).getAppVersion();
+google.script.run.withSuccessHandler(name => {
+  if (!name) return;
+  const el = document.getElementById('appName');
+  el.textContent = name;
+  el.classList.add('on');
+}).getDisplayName();
+
+/* ===== 画面切替(スキャン / 未提出・再提出リスト) ===== */
+let listDataLoaded = false;
+let listMaterials = [];  // getPrintDataで取得した教材一覧(絞り込みの連動に使う)
+
+/** 3つの画面(scan / list / mat)のうち1つだけを表示する */
+function _switchView(name) {
+  if (name !== 'mat') clearMvMsg();
+  document.getElementById('scanView').style.display = name === 'scan' ? 'flex' : 'none';
+  document.getElementById('listView').classList.toggle('on', name === 'list');
+  document.getElementById('matView').classList.toggle('on', name === 'mat');
+  document.getElementById('tabScan').classList.toggle('active', name === 'scan');
+  document.getElementById('tabList').classList.toggle('active', name === 'list');
+  document.getElementById('tabMat').classList.toggle('active', name === 'mat');
+}
+function showScanView() {
+  _switchView('scan');
+  focusHW();
+}
+function showListView() {
+  _switchView('list');
+  if (!listDataLoaded) { listDataLoaded = true; initListFilters(); }
+}
+function showMatView() {
+  _switchView('mat');   // 教材タブではハンディリーダー欄にフォーカスを戻さない
+  if (!mvData) loadMatView();
+}
+document.getElementById('tabScan').onclick = showScanView;
+document.getElementById('tabList').onclick = showListView;
+document.getElementById('tabMat').onclick = showMatView;
+
+/** 選択肢を作り直す。wantを渡すとその値を優先して復元する。
+ *  候補に無い値だった場合は必ず「すべて」に戻す(存在しない条件を
+ *  サーバーに送ってしまうのを防ぐため、明示的にリセットする)。 */
+function _fillListSelect(sel, values, prefix, want) {
+  const cur = (want === undefined || want === null) ? sel.value : String(want);
+  sel.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+  const uniq = [...new Set(values.filter(v => v !== '' && v != null))]
+    .sort((a, b) => String(a).localeCompare(String(b), 'ja', { numeric: true }));
+  uniq.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = prefix + ': ' + v;
+    sel.appendChild(o);
+  });
+  sel.value = (uniq.indexOf(cur) !== -1) ? cur : '';
+}
+
+/** 教材の対象学年に、指定した学年が含まれるか。
+ *  教材シートの学年が空欄なら全学年対象として扱う(サーバー側の判定と揃える)。
+ *  「1,2」のようなカンマ区切りの複数指定にも対応する。 */
+function _matGradeOk(m, grade) {
+  if (!grade) return true;
+  const gs = String(m.grade || '').split(',').map(s => s.trim()).filter(Boolean);
+  return !gs.length || gs.indexOf(grade) !== -1;
+}
+
+/** 学年→教科→教材名→範囲 の順に連動させて、下位の選択肢を作り直す。
+ *  上位で絞った教材だけを候補の材料にするので、例えば教科で「国語」を
+ *  選べば、教材名・範囲には国語の教材のものだけが並ぶ。
+ *  wantに保存済みの条件を渡すと、候補として存在するものだけ復元する。 */
+function rebuildListSelects(want) {
+  want = want || {};
+  const subjectSel = document.getElementById('lfSubject');
+  const nameSel    = document.getElementById('lfName');
+  const rangeSel   = document.getElementById('lfRange');
+
+  const grade = document.getElementById('lfGrade').value;
+  let pool = listMaterials.filter(m => _matGradeOk(m, grade));
+
+  _fillListSelect(subjectSel, pool.map(m => m.subject), '教科', want.subject);
+  const subject = subjectSel.value;
+  pool = pool.filter(m => !subject || String(m.subject) === subject);
+
+  _fillListSelect(nameSel, pool.map(m => m.name), '教材名', want.name);
+  const name = nameSel.value;
+  pool = pool.filter(m => !name || String(m.name) === name);
+
+  _fillListSelect(rangeSel, pool.map(m => m.range), '範囲', want.range);
+}
+
+/** 絞り込みが変わったとき: 下位の選択肢を作り直してから再検索する */
+function onListFilterChange() {
+  rebuildListSelects();
+  refreshList();
+}
+
+/** フィルタ用の選択肢を作る(印刷ページと同じgetPrintDataを流用)。
+ *  先に保存済みの絞り込み条件を取りに行き、それを初期値として反映する。 */
+/** 締切の選択肢(サーバーの DUE_MODES と同じ値) */
+const DUE_OPTIONS = [['', '締切: すべて'], ['has', '締切あり'], ['overdue', '締切を過ぎた'],
+  ['week', '7日以内'], ['range', '期間を指定'], ['none', '締切なし']];
+function _fillDueSelect(selId, rangeId) {
+  const sel = document.getElementById(selId);
+  sel.innerHTML = DUE_OPTIONS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
+  _syncDueRange(selId, rangeId);
+}
+function _syncDueRange(selId, rangeId) {
+  document.getElementById(rangeId).classList.toggle('on', document.getElementById(selId).value === 'range');
+}
+
+function initListFilters() {
+  ['lfGrade', 'lfCls', 'lfSubject', 'lfName', 'lfRange', 'lfClosed']
+    .forEach(id => document.getElementById(id).onchange = onListFilterChange);
+  _fillDueSelect('lfDue', 'lfDueRange');
+  document.getElementById('lfDue').onchange = () => { _syncDueRange('lfDue', 'lfDueRange'); refreshList(); };
+  ['lfDueFrom', 'lfDueTo'].forEach(id => document.getElementById(id).onchange = refreshList);
+  document.getElementById('btnListRefresh').onclick = refreshList;
+
+  google.script.run
+    .withSuccessHandler(saved => _loadListChoices(saved || {}))
+    .withFailureHandler(() => _loadListChoices({}))  // 保存値が読めなくても開ける
+    .getMyListFilters();
+}
+
+/** 選択肢のもとになるデータを取得し、savedを初期値として画面に反映する */
+function _loadListChoices(saved) {
+  google.script.run
+    .withSuccessHandler(d => {
+      listMaterials = d.materials || [];
+      _fillListSelect(document.getElementById('lfGrade'),
+        (d.students || []).map(s => s.grade), '学年', saved.grade);
+      _fillListSelect(document.getElementById('lfCls'),
+        (d.students || []).map(s => s.cls), '組', saved.cls);
+      document.getElementById('lfClosed').checked = !!saved.includeClosed;
+      document.getElementById('lfDue').value =
+        DUE_OPTIONS.some(o => o[0] === saved.dueMode) ? saved.dueMode : '';
+      document.getElementById('lfDueFrom').value = saved.dueFrom || '';
+      document.getElementById('lfDueTo').value = saved.dueTo || '';
+      _syncDueRange('lfDue', 'lfDueRange');
+      rebuildListSelects(saved);   // 教科・教材名・範囲は連動させながら復元する
+      refreshList();
+    })
+    .withFailureHandler(e => {
+      document.getElementById('listSummary').textContent = 'エラー: ' + e.message;
+    })
+    .getPrintData();
+}
+
+function refreshList() {
+  const filters = {
+    grade:   document.getElementById('lfGrade').value,
+    cls:     document.getElementById('lfCls').value,
+    subject: document.getElementById('lfSubject').value,
+    name:    document.getElementById('lfName').value,
+    range:   document.getElementById('lfRange').value,
+    includeClosed: document.getElementById('lfClosed').checked,
+    dueMode: document.getElementById('lfDue').value,
+    dueFrom: document.getElementById('lfDueFrom').value,
+    dueTo:   document.getElementById('lfDueTo').value,
+  };
+  // 次にこの画面を開いたときの初期値として覚えておく。
+  // 記憶は補助機能なので、失敗しても一覧表示には影響させない(通知もしない)
+  google.script.run.withFailureHandler(() => {}).saveMyListFilters(filters);
+
+  document.getElementById('listSummary').textContent = '読み込み中...';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.ok) { document.getElementById('listSummary').textContent = 'エラー: ' + res.error; return; }
+      renderListResults(res.materials);
+    })
+    .withFailureHandler(e => {
+      document.getElementById('listSummary').textContent = 'エラー: ' + e.message;
+    })
+    .getUnsubmittedList(filters);
+}
+
+function renderListResults(materials) {
+  const totalResubmit = materials.reduce((a, m) => a + m.resubmitCount, 0);
+  const totalUnsub = materials.reduce((a, m) => a + m.unsubmittedCount, 0);
+  const totalGiveup = materials.reduce((a, m) => a + (m.giveupCount || 0), 0);
+  document.getElementById('listSummary').textContent =
+    materials.length
+      ? '該当教材 ' + materials.length + '件 - 再提出 ' + totalResubmit +
+        '名 / 未提出 ' + totalUnsub + '名 / 断念 ' + totalGiveup + '名'
+      : '該当する未提出・再提出はありません(条件を絞りすぎている可能性もあります)';
+
+  const box = document.getElementById('listResults');
+  box.innerHTML = '';
+  if (!materials.length) return;
+
+  materials.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'matCard';
+
+    const hd = document.createElement('div');
+    hd.className = 'hd';
+    hd.innerHTML =
+      '<div class="ttl">' + m.name +
+      (m.daily ? ' <span style="font-size:11px;font-weight:normal;color:#8a6d1b">📅本日(' +
+                 m.dateLabel + ')分</span>' : '') +
+      (m.closed ? ' <span style="font-size:11px;font-weight:normal;color:#6b7280">🔒受付終了</span>' : '') +
+      '<div class="sub">' + m.subject +
+      (m.dueText ? ' ・ <span class="due">締切' + m.dueText + '</span>' : '') + '</div></div>';
+    if (m.resubmitCount > 0) {
+      const nb = document.createElement('button');
+      nb.className = 'notify';
+      nb.textContent = '📣 再提出者に通知';
+      nb.onclick = () => notifyFromList(m.code, m.name);
+      hd.appendChild(nb);
+    }
+    const cb = document.createElement('button');
+    cb.className = 'notify';
+    cb.textContent = m.closed ? '🔓 受付を再開する' : '🔒 受付終了にする';
+    cb.onclick = () => toggleClosed(m.code, m.name, !m.closed);
+    hd.appendChild(cb);
+    card.appendChild(hd);
+
+    m.targets.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'stuRow';
+      const pillCls = t.status === '再提出' ? 'ng' : (t.status === '断念' ? 'gv' : 'wt');
+      row.innerHTML =
+        '<span class="gk">' + t.gakkyu + '</span>' +
+        '<span class="nm">' + t.name + '</span>' +
+        (t.badge ? '<span class="bd">' + t.badge + '</span>' : '') +
+        '<span class="pill2 ' + pillCls + '">' + t.status + '</span>';
+      card.appendChild(row);
+    });
+    box.appendChild(card);
+  });
+}
+
+/** 一覧画面からもClassroom通知を送れるようにする(スキャン画面のbtnNotifyと同じ流れ) */
+function notifyFromList(materialCode, materialName) {
+  google.script.run
+    .withSuccessHandler(pre => {
+      if (!pre.ok) { alert('⚠ ' + pre.error); return; }
+      if (!pre.targets.length) { alert('「' + pre.material + '」の再提出者はいません'); return; }
+      const names = pre.targets.map(t => t.cls + ' ' + t.name).join('\n');
+      const dateNote = pre.daily ? '(' + pre.date + '分)' : '';
+      if (!confirm('「' + pre.material + '」' + dateNote + 'の再提出者 ' + pre.targets.length +
+                   '名にClassroom通知を送ります。\n\n' + names + '\n\nよろしいですか?')) return;
+      google.script.run
+        .withSuccessHandler(out => {
+          alert(out.ok ? '📣 ' + out.sent + '名に通知しました' : '⚠ ' + out.error);
+        })
+        .withFailureHandler(e => alert('⚠ 通知に失敗: ' + e.message))
+        .sendClassroomNotice(materialCode);
+    })
+    .withFailureHandler(e => alert('⚠ ' + e.message))
+    .getResubmitList(materialCode);
+}
+
+/** 教材カードの🔒/🔓ボタンから受付終了フラグを切り替える */
+function toggleClosed(code, name, closed) {
+  const msg = closed
+    ? '「' + name + '」の受付を終了しますか?\n未提出・再提出の生徒の画面から「やること」表示が消え、提出済みリストに「受付終了」として表示されます。\n(後からいつでも再開できます)'
+    : '「' + name + '」の受付を再開しますか?\n未提出・再提出の生徒の画面に、再び「やること」として表示されます。';
+  if (!confirm(msg)) return;
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.ok) { alert('⚠ ' + res.error); return; }
+      refreshList();
+    })
+    .withFailureHandler(e => alert('⚠ ' + e.message))
+    .setMaterialClosed(code, closed);
+}
+
+/* ===== 教材タブ(v6.8〜) =====
+   一覧・登録・編集・削除。保存はすべてサーバー側で職員確認・検証してから行う */
+let mvData = null;       // getMaterialAdminData の結果
+let mvEditing = null;    // 編集中の教材(新規登録中は null)
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const _byJa = (a, b) => String(a).localeCompare(String(b), 'ja', { numeric: true });
+
+function loadMatView() {
+  document.getElementById('mvList').innerHTML = '<div id="listEmpty">読み込み中...</div>';
+  google.script.run
+    .withSuccessHandler(d => {
+      if (!d || !d.ok) { document.getElementById('mvList').textContent = '⚠ 読み込めませんでした'; return; }
+      mvData = d;
+      const notes = [];
+      if (d.demo) notes.push('体験版のため、登録・編集・削除は保存されません。');
+      if (!d.hasAudit) notes.push('登録した先生の記録と推奨の略称を使うには、スプレッドシートを開き、' +
+        '上部メニュー「提出物アプリ」→「⑥ 追加列を準備」を1回実行してください(管理する先生が1回行えば全員に反映されます)。');
+      if (!d.subjects.length) notes.push('略称シートに教科がありません。先に教科の略称を登録してください。');
+      document.getElementById('mvNote').textContent = notes.join(' ');
+      rebuildMvFilters();
+      renderMvList();
+    })
+    .withFailureHandler(e => {
+      document.getElementById('mvList').textContent = '⚠ ' + e.message;
+    })
+    .getMaterialAdminData();
+}
+
+/** 学年→教科→教材名 の順に連動して絞り込みの選択肢を作る */
+function rebuildMvFilters() {
+  const ms = mvData.materials;
+  const gSel = document.getElementById('mvGrade');
+  const sSel = document.getElementById('mvSubject');
+  const nSel = document.getElementById('mvName');
+  _fillListSelect(gSel, mvData.grades, '学年');
+  let pool = ms.filter(m => _matGradeOk(m, gSel.value));
+  _fillListSelect(sSel, pool.map(m => m.subject), '教科');
+  pool = pool.filter(m => !sSel.value || m.subject === sSel.value);
+  _fillListSelect(nSel, pool.map(m => m.name), '教材名');
+}
+
+function renderMvList() {
+  const g = document.getElementById('mvGrade').value;
+  const s = document.getElementById('mvSubject').value;
+  const n = document.getElementById('mvName').value;
+  const mine = document.getElementById('mvMine').checked;
+  const showClosed = document.getElementById('mvClosed').checked;
+  const dueMode = document.getElementById('mvDue').value;
+  const dueFrom = document.getElementById('mvDueFrom').value;
+  const dueTo = document.getElementById('mvDueTo').value;
+  const byDue = dueMode && dueMode !== 'none';   // 締切で絞ったら締切が近い順
+  const list = mvData.materials
+    .filter(m => _matGradeOk(m, g) && (!s || m.subject === s) && (!n || m.name === n))
+    .filter(m => (!mine || m.mine) && (showClosed || !m.closed))
+    .filter(m => _mvDueMatches(m, dueMode, dueFrom, dueTo))
+    .sort((a, b) => (byDue && a.due !== b.due ? (a.due < b.due ? -1 : 1) : 0) ||
+      _byJa(a.subject, b.subject) || _byJa(a.name, b.name) || _byJa(a.range, b.range));
+
+  const box = document.getElementById('mvList');
+  if (!list.length) { box.innerHTML = '<div id="listEmpty">該当する教材はありません</div>'; return; }
+  box.innerHTML = list.map(m => {
+    const subs = [esc(m.subject),
+      m.grade ? esc(m.grade) + '年' : '全学年',
+      m.cls ? esc(m.cls) + '組' : '全組',
+      m.dueText ? '締切' + esc(m.dueText) : '',
+      esc(m.labels.split(',').join('/'))].filter(Boolean).join(' ・ ');
+    const audit = (mvData.hasAudit || m.createdBy)
+      ? '登録:' + (m.createdBy ? esc(m.createdBy) + ' ' + esc(m.createdAt) : '記録なし') +
+        (m.updatedBy ? ' ・ 更新:' + esc(m.updatedBy) + ' ' + esc(m.updatedAt) : '')
+      : '';
+    return '<div class="mvCard">' +
+      '<div class="top"><span class="ttl">' + esc(m.name) + (m.range ? '(' + esc(m.range) + ')' : '') +
+      '</span><span class="code">' + esc(m.code) + '</span></div>' +
+      '<div class="sub">' + subs + (audit ? '<br>' + audit : '') + '</div>' +
+      '<div class="bot">' +
+      (m.daily ? '<span class="tag">📅毎日</span>' : '') +
+      (m.closed ? '<span class="tag">🔒受付終了</span>' : '') +
+      '<span class="grow">記録 ' + m.logCount + '件</span>' +
+      '<button data-code="' + esc(m.code) + '">編集</button></div></div>';
+  }).join('');
+  box.querySelectorAll('button[data-code]').forEach(b => {
+    b.onclick = () => openMvForm(mvData.materials.find(m => m.code === b.dataset.code));
+  });
+}
+
+/** 教材タブの締切絞り込み(サーバーの _dueMatches と同じ規則。m.due は yyyy-MM-dd か空) */
+function _mvDueMatches(m, mode, from, to) {
+  if (!mode) return true;
+  const due = m.daily ? '' : (m.due || '');
+  if (mode === 'none') return !due;
+  if (!due) return false;
+  if (mode === 'has') return true;
+  const d = new Date(), pad = x => ('0' + x).slice(-2);
+  const key = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+  const today = key(d);
+  if (mode === 'overdue') return due < today;
+  if (mode === 'week') { d.setDate(d.getDate() + 7); return due >= today && due <= key(d); }
+  if (mode === 'range') return (!from || due >= from) && (!to || due <= to);
+  return true;
+}
+_fillDueSelect('mvDue', 'mvDueRange');
+document.getElementById('mvDue').onchange = () => { clearMvMsg(); _syncDueRange('mvDue', 'mvDueRange'); renderMvList(); };
+['mvDueFrom', 'mvDueTo'].forEach(id => document.getElementById(id).onchange = renderMvList);
+
+['mvGrade', 'mvSubject', 'mvName'].forEach(id => {
+  document.getElementById(id).onchange = () => { clearMvMsg(); rebuildMvFilters(); renderMvList(); };
+});
+['mvMine', 'mvClosed'].forEach(id => document.getElementById(id).onchange = () => { clearMvMsg(); renderMvList(); });
+
+/** チェックの並び(学年・組・再提出扱い)を作る */
+function _fillChips(boxId, values, checked) {
+  const box = document.getElementById(boxId);
+  box.innerHTML = values.map(v =>
+    '<label><input type="checkbox" value="' + esc(v) + '"' +
+    (checked.indexOf(String(v)) !== -1 ? ' checked' : '') + '>' + esc(v) + '</label>').join('');
+}
+const _checkedOf = boxId => [...document.querySelectorAll('#' + boxId + ' input:checked')].map(i => i.value);
+const _csv = s => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+
+/** 評価ラベルの入力に合わせて「再提出扱い」の選択肢を作り直す(選択は可能な限り引き継ぐ) */
+function rebuildFailChips(want) {
+  const labels = _csv(document.getElementById('fLabels').value);
+  const keep = want || _checkedOf('fFails');
+  _fillChips('fFails', labels, keep.filter(f => labels.indexOf(f) !== -1));
+}
+document.getElementById('fLabels').oninput = () => rebuildFailChips();
+document.querySelectorAll('#mvForm button[data-l]').forEach(b => {
+  b.onclick = () => {
+    document.getElementById('fLabels').value = b.dataset.l;
+    rebuildFailChips(_csv(b.dataset.f));
+  };
+});
+
+let abbrManual = false;   // 略称を先生が自分で入力したら、自動入力で上書きしない
+
+/** 推奨の略称を探す。完全一致を優先し、なければ名称を含む中で一番長いもの
+ *  (サーバーの _findAbbr と同じ考え方。「数学ノート」→「ノート」の NT) */
+function _recommendedAbbr(name) {
+  const rec = mvData.recommended || [];
+  const exact = rec.find(r => r.name === name);
+  if (exact) return exact.abbr;
+  let best = null;
+  rec.forEach(r => { if (name.indexOf(r.name) !== -1 && (!best || r.name.length > best.name.length)) best = r; });
+  return best ? best.abbr : '';
+}
+
+/** 教材名から略称を自動で入れる。順番は
+ *  ①同じ教科で使用中 → ②推奨(略称シートの「教材」行) → ③ほかの教科で使用中 */
+function fillAbbrFromName() {
+  if (mvEditing || abbrManual) return;
+  const name = document.getElementById('fName').value.trim();
+  const subj = document.getElementById('fSubject').value;
+  if (!name) return;
+  const same = mvData.materials.find(m => m.name === name && m.subject === subj && m.abbr);
+  const other = mvData.materials.find(m => m.name === name && m.abbr);
+  const ab = (same && same.abbr) || _recommendedAbbr(name) || (other && other.abbr) || '';
+  if (ab) document.getElementById('fAbbr').value = ab;
+}
+
+/** 教材名の候補を出す。選んだ教科の教材名を先に、ほかの教科の分は灰色で後に並べる */
+function showNameSug() {
+  const box = document.getElementById('fNameSug');
+  const q = document.getElementById('fName').value.trim();
+  const subj = document.getElementById('fSubject').value;
+  const same = new Set(), other = new Set();
+  mvData.materials.forEach(m => (m.subject === subj ? same : other).add(m.name));
+  same.forEach(n => other.delete(n));
+  const pick = set => [...set].filter(n => !q || n.indexOf(q) !== -1).sort(_byJa);
+  const items = pick(same).map(n => [n, false]).concat(pick(other).map(n => [n, true]));
+  if (!items.length || (items.length === 1 && items[0][0] === q)) { box.classList.remove('on'); return; }
+  box.innerHTML = items.map(([n, isOther]) =>
+    '<div data-n="' + esc(n) + '"' + (isOther ? ' class="other"' : '') + '>' + esc(n) + '</div>').join('');
+  box.classList.add('on');
+}
+/** 使われている教材名略称の一覧(選んだ教科の分を先に)と、略称の重複注意を出す。
+ *  同じ教科で別の教材名に同じ略称を使うと、教材コードの連番がつながって紛らわしいため注意する */
+function updateAbbrHint() {
+  const hint = document.getElementById('fAbbrHint');
+  const warn = document.getElementById('fAbbrWarn');
+  if (mvEditing) { hint.innerHTML = ''; warn.textContent = ''; return; }
+  const subj = document.getElementById('fSubject').value;
+  const pairs = {};   // 'abbr|name' -> {abbr, name, same}
+  mvData.materials.forEach(m => {
+    if (!m.abbr) return;
+    const k = m.abbr + '|' + m.name;
+    if (!pairs[k]) pairs[k] = { abbr: m.abbr, name: m.name, same: false };
+    if (m.subject === subj) pairs[k].same = true;
+  });
+  const list = Object.values(pairs).sort((a, b) => (b.same - a.same) || _byJa(a.abbr, b.abbr));
+  const fmt = p => '<span' + (p.same ? '' : ' class="other"') + '><b>' + esc(p.abbr) + '</b>=' + esc(p.name) + '</span>';
+  const same = list.filter(p => p.same), other = list.filter(p => !p.same);
+  const rec = (mvData.recommended || []).slice().sort((a, b) => _byJa(a.abbr, b.abbr));
+  const lines = [];
+  if (rec.length) {
+    lines.push('推奨:' + rec.map(r => '<span><b>' + esc(r.abbr) + '</b>=' + esc(r.name) + '</span>').join('、'));
+  }
+  if (list.length) {
+    lines.push('使用中' + (subj ? '(' + esc(subj) + ')' : '') + ':' +
+      (same.length ? same.map(fmt).join('、') : 'まだありません'));
+    if (other.length) lines.push('使用中(ほかの教科):' + other.map(fmt).join('、'));
+  }
+  hint.innerHTML = lines.join('<br>');
+
+  const abbr = document.getElementById('fAbbr').value.trim().toUpperCase();
+  const name = document.getElementById('fName').value.trim();
+  const clash = same.filter(p => p.abbr === abbr && p.name !== name);
+  warn.textContent = (abbr && clash.length)
+    ? '⚠ ' + abbr + ' は' + (subj ? subj + 'の' : '') + '「' + clash.map(p => p.name).join('」「') +
+      '」で使用中です。同じ略称にすると教材コードの連番がつながります'
+    : '';
+}
+document.getElementById('fAbbr').oninput = () => {
+  abbrManual = document.getElementById('fAbbr').value.trim() !== '';  // 空に戻したら自動入力を再開
+  updateAbbrHint();
+};
+document.getElementById('fSubject').onchange = () => { fillAbbrFromName(); updateAbbrHint(); };
+
+const fNameEl = document.getElementById('fName');
+fNameEl.oninput = () => { fillAbbrFromName(); showNameSug(); updateAbbrHint(); };
+fNameEl.onfocus = showNameSug;
+// 候補をタップする前に blur で消えないよう、少し待ってから閉じる
+fNameEl.onblur = () => setTimeout(() => document.getElementById('fNameSug').classList.remove('on'), 200);
+document.getElementById('fNameSug').onmousedown = e => e.preventDefault();
+document.getElementById('fNameSug').onclick = e => {
+  const d = e.target.closest('div[data-n]');
+  if (!d) return;
+  fNameEl.value = d.dataset.n;
+  document.getElementById('fNameSug').classList.remove('on');
+  fillAbbrFromName();
+  updateAbbrHint();
+};
+
+function openMvForm(m) {
+  mvEditing = m || null;
+  const isNew = !m;
+  clearMvMsg();
+  document.getElementById('fTitle').textContent = isNew ? '新しい教材' : '編集:' + m.code;
+
+  const subjSel = document.getElementById('fSubject');
+  const subjects = mvData.subjects.slice();
+  if (m && subjects.indexOf(m.subject) === -1) subjects.push(m.subject);
+  subjSel.innerHTML = (isNew ? '<option value="">選んでください</option>' : '') +
+    subjects.map(s => '<option value="' + esc(s) + '">' + esc(s) + '</option>').join('');
+  subjSel.value = m ? m.subject : (document.getElementById('mvSubject').value || '');
+  subjSel.disabled = !isNew;
+
+  document.getElementById('fNameSug').classList.remove('on');
+  document.getElementById('fName').value = m ? m.name : '';
+  document.getElementById('fAbbr').value = m ? m.abbr : '';
+  document.getElementById('fAbbr').disabled = !isNew;
+  abbrManual = false;
+  updateAbbrHint();
+  document.getElementById('fRangesRow').style.display = isNew ? '' : 'none';
+  document.getElementById('fRangeRow').style.display = isNew ? 'none' : '';
+  document.getElementById('fRanges').value = '';
+  document.getElementById('fRange').value = m ? m.range : '';
+
+  const grades = mvData.grades.length ? mvData.grades : ['1', '2', '3'];
+  _fillChips('fGrades', grades, m ? _csv(m.grade) : []);
+  _fillChips('fClasses', mvData.classes, m ? _csv(m.cls) : []);
+  document.getElementById('fDue').value = m ? m.due : '';
+  document.getElementById('fLabels').value = m ? m.labels : '合格,再提出';
+  rebuildFailChips(m ? _csv(m.fails) : ['再提出']);
+
+  const daily = document.getElementById('fDaily');
+  daily.checked = !!(m && m.daily);
+  daily.disabled = !mvData.hasDaily;
+  document.getElementById('fClosed').checked = !!(m && m.closed);
+  document.getElementById('fClosedWrap').style.display = (!isNew && mvData.hasClosed) ? '' : 'none';
+
+  const warn = document.getElementById('fWarn');
+  if (m && m.logCount > 0) {
+    warn.innerHTML = 'この教材には記録が ' + m.logCount + ' 件あります。<br>' +
+      '・評価ラベル/再提出扱いを変えると、過去の記録の判定(済・再提出)が変わることがあります<br>' +
+      '・学年/対象組を変えると、未提出リストの対象者が変わります<br>' +
+      '・教材名/範囲を変えても、ログには記録した時点の名前が残ります';
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  document.getElementById('btnMvSave').textContent = isNew ? '登録' : '保存';
+  document.getElementById('btnMvDelete').style.display = (m && m.logCount === 0) ? '' : 'none';
+  document.getElementById('mvForm').classList.add('on');
+  document.getElementById('mvBody').scrollTop = 0;
+}
+function closeMvForm() {
+  document.getElementById('mvForm').classList.remove('on');
+  mvEditing = null;
+}
+document.getElementById('btnMvNew').onclick = () => openMvForm(null);
+/** 印刷ページを「教材一覧表」の状態で別タブに開く(教材のQRを刷る導線を常に出しておく) */
+const _matPrintUrl = () => mvData.printUrl + '&kind=materials';
+document.getElementById('btnMvPrint').onclick = () => {
+  if (mvData) window.open(_matPrintUrl(), '_blank', 'noopener');
+};
+document.getElementById('btnMvCancel').onclick = closeMvForm;
+
+function _mvFormValues() {
+  return {
+    subject: document.getElementById('fSubject').value,
+    name: document.getElementById('fName').value,
+    abbr: document.getElementById('fAbbr').value,
+    ranges: document.getElementById('fRanges').value,
+    range: document.getElementById('fRange').value,
+    grades: _checkedOf('fGrades'),
+    classes: _checkedOf('fClasses'),
+    due: document.getElementById('fDue').value,
+    labels: document.getElementById('fLabels').value,
+    fails: _checkedOf('fFails'),
+    daily: document.getElementById('fDaily').checked,
+    closed: document.getElementById('fClosed').checked,
+  };
+}
+
+/** 教材を変えたら、未提出リスト側の絞り込み候補も次に開いたとき作り直す */
+function _afterMvChange(msgHtml) {
+  closeMvForm();
+  listDataLoaded = false;
+  showMvMsg(msgHtml);
+  loadMatView();
+}
+
+/** 登録・保存・削除の結果メッセージ。出しっぱなしにしないよう、✕・15秒後・
+ *  絞り込みの変更・フォームを開く・タブ切替のどれかで消す */
+let mvMsgTimer = null;
+function showMvMsg(html) {
+  const box = document.getElementById('mvMsg');
+  box.innerHTML = '<span id="mvMsgX" title="閉じる">✕</span>' + html;
+  document.getElementById('mvMsgX').onclick = clearMvMsg;
+  clearTimeout(mvMsgTimer);
+  mvMsgTimer = setTimeout(clearMvMsg, 15000);
+}
+function clearMvMsg() {
+  clearTimeout(mvMsgTimer);
+  document.getElementById('mvMsg').innerHTML = '';
+}
+
+let mvSaving = false;
+document.getElementById('btnMvSave').onclick = () => {
+  if (mvSaving) return;
+  const p = _mvFormValues();
+  const done = () => { mvSaving = false; };
+  const fail = e => { done(); alert('⚠ ' + (e.message || e)); };
+
+  if (mvEditing) {
+    const m = mvEditing;
+    if (m.logCount > 0 && (p.labels.replace(/\s/g, '') !== m.labels.replace(/\s/g, '') ||
+        p.fails.join(',') !== _csv(m.fails).join(','))) {
+      if (!confirm('評価ラベル/再提出扱いを変更します。過去の記録の判定が変わることがあります。保存しますか?')) return;
+    }
+    mvSaving = true;
+    google.script.run
+      .withSuccessHandler(res => {
+        done();
+        if (!res.ok) { alert('⚠ ' + res.error); return; }
+        _afterMvChange(res.demo ? '体験版のため保存されませんでした。'
+                                : '「' + esc(m.code) + '」を保存しました。');
+      })
+      .withFailureHandler(fail)
+      .updateMaterial(m.code, p);
+    return;
+  }
+
+  const send = allowDuplicate => {
+    mvSaving = true;
+    p.allowDuplicate = allowDuplicate;
+    google.script.run
+      .withSuccessHandler(res => {
+        done();
+        if (res.duplicate) {
+          if (confirm('同じ教材がすでにあります(' + res.duplicate.join(', ') + ')。\nそれでも登録しますか?')) send(true);
+          return;
+        }
+        if (!res.ok) { alert('⚠ ' + res.error); return; }
+        const lines = res.items.map(it => esc(it.code) + ' ' + esc(it.disp)).join('<br>');
+        _afterMvChange(res.demo
+          ? '体験版のため保存されませんでした(登録されるはずだった教材:<br>' + lines + ')'
+          : res.items.length + '件登録しました。<br>' + lines +
+            '<br><a href="' + esc(_matPrintUrl()) + '" target="_blank" rel="noopener">🖨 QRラベルを印刷</a>');
+      })
+      .withFailureHandler(fail)
+      .createMaterials(p);
+  };
+  send(false);
+};
+
+document.getElementById('btnMvDelete').onclick = () => {
+  const m = mvEditing;
+  if (!m || mvSaving) return;
+  if (!confirm('「' + m.code + ' ' + m.name + (m.range ? '(' + m.range + ')' : '') +
+               '」を削除しますか?\n(記録が無い教材だけ削除できます。元に戻せません)')) return;
+  mvSaving = true;
+  google.script.run
+    .withSuccessHandler(res => {
+      mvSaving = false;
+      if (!res.ok) { alert('⚠ ' + res.error); return; }
+      _afterMvChange(res.demo ? '体験版のため削除されませんでした。'
+                              : '「' + esc(m.code) + '」を削除しました。');
+    })
+    .withFailureHandler(e => { mvSaving = false; alert('⚠ ' + e.message); })
+    .deleteMaterial(m.code);
+};
+</script>
+
+<script>
+  google.script.run.withSuccessHandler(function (msg) {
+    if (!msg) return;
+    var b = document.createElement('div');
+    b.textContent = msg;
+    b.style.cssText = 'background:#e65100;color:#fff;text-align:center;' +
+      'padding:6px 10px;font-weight:bold;position:sticky;top:0;z-index:9999;';
+    document.body.insertBefore(b, document.body.firstChild);
+  }).getBuildBanner();
+</script>
+
+</body>
+</html>

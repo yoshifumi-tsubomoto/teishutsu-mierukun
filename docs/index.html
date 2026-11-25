@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提出物みえるくん｜Tsubomoto Lab.</title>
+<meta name="description" content="QR をスキャンして提出物をすばやくチェック。生徒は自分の提出状況を確かめられ、未提出・再提出の生徒には Classroom で知らせます。">
+<meta property="og:title" content="提出物みえるくん｜Tsubomoto Lab.">
+<meta property="og:description" content="提出物を QR でさっとチェック。生徒は自分の提出状況をスマホや Chromebook で。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/lab.css">
+</head>
+<body class="hue-violet">
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="https://yoshifumi-tsubomoto.github.io/" class="brand" aria-label="Tsubomoto Lab. トップへ">
+      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
+        <circle cx="20" cy="20" r="18.5" fill="var(--paper)" stroke="var(--navy)" stroke-width="1.5" />
+        <ellipse cx="20" cy="20" rx="13" ry="5.2" fill="none" stroke="var(--navy)" stroke-width="1.2" transform="rotate(-30 20 20)" />
+        <ellipse cx="20" cy="20" rx="13" ry="5.2" fill="none" stroke="var(--teal)" stroke-width="1.2" transform="rotate(30 20 20)" />
+        <circle cx="20" cy="20" r="3.2" fill="var(--navy)" />
+        <circle cx="31.3" cy="13.5" r="2" fill="var(--teal)" />
+      </svg>
+      <span class="brand-text"><span class="brand-name">Tsubomoto Lab.</span><span class="brand-sub">教室のための、小さなソフトウェア</span></span>
+    </a>
+    <nav class="nav" aria-label="このページの案内">
+      <a href="https://script.google.com/macros/s/AKfycbz6YF99JsB9BQO6xfZroeYpfpmcBjX06nl-o3dx4AWTjxSlw22aQcdmsZfvcIAiilMc/exec">体験版</a>
+      <a href="https://docs.google.com/document/d/1mZe16dx0zZkBDOiZnLO7_HBp_gGcrWJZSoC4k-TVN3o/edit?usp=sharing">説明書</a>
+      <a href="https://github.com/yoshifumi-tsubomoto/teishutsu-mierukun/releases">新しい版</a>
+      <a href="https://github.com/yoshifumi-tsubomoto/teishutsu-mierukun">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="app-hero">
+    <div class="wrap app-hero-inner">
+      <div class="tile big" aria-hidden="true">
+        <span class="tile-num mono">4</span>
+        <span class="tile-sym">Tc</span>
+        <span class="tile-ver mono">v6.9</span>
+      </div>
+      <div>
+        <div class="crumb small"><a href="https://yoshifumi-tsubomoto.github.io/#apps">アプリ</a> ／ 提出物みえるくん</div>
+        <div><span class="chip">中学校</span><span class="chip ghost">Google Apps Script</span></div>
+        <h1>提出物みえるくん</h1>
+        <p class="lead">提出物を QR でさっとチェック。<br>生徒は自分の提出状況をスマホや Chromebook で確かめられ、未提出・再提出の生徒には Classroom で知らせます。</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="https://script.google.com/macros/s/AKfycbz6YF99JsB9BQO6xfZroeYpfpmcBjX06nl-o3dx4AWTjxSlw22aQcdmsZfvcIAiilMc/exec">体験版をさわる（Google アカウントでログイン）</a>
+          <a class="btn" href="https://docs.google.com/document/d/1mZe16dx0zZkBDOiZnLO7_HBp_gGcrWJZSoC4k-TVN3o/edit?usp=sharing">説明書（導入と使い方）</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head"><span class="sec-num">01</span><h2>できること</h2></div>
+      <div class="features">
+        <article class="feature"><span class="feature-no">01</span><h3>QR で続けてチェック</h3><p>教材の QR → 評価 → 生徒の QR の順に、続けてスキャンします。結果は音で分かり、取り消し・やり直しもできます。</p></article>
+        <article class="feature"><span class="feature-no">02</span><h3>評価も入れられる</h3><p>「A」「B」「C」、「合格」「再提出」、「5」〜「1」など、評価の段階は教材ごとに決められます。再提出の評価は赤で目立ちます。</p></article>
+        <article class="feature"><span class="feature-no">03</span><h3>未提出・再提出のリスト</h3><p>学年・組・教科・教材・締切で絞りこんで、リストを見たり印刷したりできます。締切は「過ぎたもの」「7日以内」「期間を指定」などで絞れ、条件は先生ごとに覚えます。</p></article>
+        <article class="feature"><span class="feature-no">04</span><h3>Classroom で1人ずつ知らせる</h3><p>未提出・再提出の生徒に、Classroom で1人ずつ知らせます。送る前に、知らせる相手を確かめられます。</p></article>
+        <article class="feature"><span class="feature-no">05</span><h3>生徒のマイページ</h3><p>生徒は自分の学校のアカウントで、自分の提出状況を確かめられます（再提出 → 未提出 → 済の順）。自分用のやることも書きこめます。</p></article>
+        <article class="feature"><span class="feature-no">06</span><h3>毎日の提出物や、受付の終了にも</h3><p>毎日集める教材や、教材ごとの受付の終了にも対応しています。教材の登録や、QR ラベルの印刷も画面からできます。</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head"><span class="sec-num">02</span><h2>しくみ</h2></div>
+      <pre class="diagram">GitHub（プログラムを配るだけ）
+   ├─→ A校がコピー → A校の Google アカウントで動く（データは A校のドライブ）
+   └─→ B校がコピー → B校の Google アカウントで動く（データは B校のドライブ）</pre>
+      <ul class="dots">
+        <li>各学校が、テンプレートのスプレッドシートを<b>自分の学校の Google アカウントにコピー</b>して使います。作者のサーバーはなく、データが作者に届くことはありません</li>
+        <li>公開の設定は「組織内のみ」です。生徒は学校のアカウントのまま開けます。QR コードの中身は生徒 ID だけで、生徒は自分の分しか見られません</li>
+        <li>費用はかかりません。新しい版は、ファイルを貼り替えて更新します</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head"><span class="sec-num">03</span><h2>使えるもの</h2></div>
+      <table class="spec-table">
+        <tr><th style="width:34%">必要なもの</th><th>説明</th></tr>
+        <tr><td>学校の Google アカウント</td><td>Google Workspace for Education など</td></tr>
+        <tr><td>端末</td><td>ブラウザで開くだけ（スマホ・Chromebook でも使えます）</td></tr>
+        <tr><td>QR の読み取り</td><td>USB・Bluetooth のハンディリーダー、または端末のカメラ</td></tr>
+        <tr><td>（Classroom で知らせるとき）</td><td>知らせるクラスの Classroom で、アプリを公開した先生が教師であること</td></tr>
+      </table>
+      <p class="note" style="margin-top:1rem">学校で使う前に、管理職や情報担当の先生に確認してください。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head"><span class="sec-num">04</span><h2>はじめる</h2></div>
+      <ol class="steps">
+        <li><a href="https://script.google.com/macros/s/AKfycbz6YF99JsB9BQO6xfZroeYpfpmcBjX06nl-o3dx4AWTjxSlw22aQcdmsZfvcIAiilMc/exec">体験版</a>で、画面をさわってみる</li>
+        <li><a href="https://docs.google.com/spreadsheets/d/1VLvvcstELPIuUoD_LZRFwEKtJFTsCyOsLVecWB8v8tU/copy">テンプレート</a>を学校のアカウントにコピーし、<a href="https://docs.google.com/document/d/1mZe16dx0zZkBDOiZnLO7_HBp_gGcrWJZSoC4k-TVN3o/edit?usp=sharing">説明書</a>のとおり名簿・教材を入れて公開する（30分ほど）</li>
+        <li>QR ラベルを印刷して、チェックを始める</li>
+      </ol>
+      <p class="small" style="margin-top:1rem">新しい版の変更点は <a href="https://github.com/yoshifumi-tsubomoto/teishutsu-mierukun/releases">Releases</a> に書いています。</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div>
+      <p class="brand-name">Tsubomoto Lab.</p>
+      <p class="muted small">中学校の理科教師が、授業と校務の「こまった」から作ったアプリを紹介します。</p>
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://yoshifumi-tsubomoto.github.io/#apps">アプリの一覧</a></li>
+      <li><a href="https://docs.google.com/document/d/1mZe16dx0zZkBDOiZnLO7_HBp_gGcrWJZSoC4k-TVN3o/edit?usp=sharing">提出物みえるくんの説明書</a></li>
+      <li><a href="https://docs.google.com/forms/d/e/1FAIpQLSd9N9QK0rY9jTGNF2HcpDyVbXDLzyhA-qtZ2tM7VUrqhZBQEg/viewform?usp=pp_url&amp;entry.1742015823=%E3%82%A2%E3%83%97%E3%83%AA%E3%81%AE%E8%A6%81%E6%9C%9B%E3%83%BB%E4%B8%8D%E5%85%B7%E5%90%88&amp;entry.781158365=%E6%8F%90%E5%87%BA%E7%89%A9%E3%81%BF%E3%81%88%E3%82%8B%E3%81%8F%E3%82%93" target="_blank" rel="noopener">要望・不具合の連絡</a></li>
+      <li><a href="https://github.com/yoshifumi-tsubomoto/teishutsu-mierukun" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+  <div class="wrap mono tiny muted footer-note">Copyright 2026 坪本 吉史 ／ Apache License 2.0</div>
+</footer>
+
+</body>
+</html>

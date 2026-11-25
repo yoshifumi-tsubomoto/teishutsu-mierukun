@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root {
+    --ink: #1f2933; --sub: #616e7c; --line: #d5dbe1;
+    --ok: #1b8a5a; --ng: #c6303e; --wait: #8a6d1b; --give: #6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", sans-serif;
+    color: var(--ink); background: #f7f8f9;
+  }
+  header { background: #263238; color: #fff; padding: 14px 16px; }
+  header .cap { font-size: 12px; opacity: .7; }
+  header .who { font-size: 19px; font-weight: bold; }
+
+  main { max-width: 560px; margin: 0 auto; padding: 12px 16px 40px; }
+
+  /* ===== タブ切り替え(やること / 提出済み) ===== */
+  .tabs {
+    display: flex; gap: 8px; margin: 0 -16px 12px; padding: 8px 16px;
+    position: sticky; top: 0; z-index: 5; background: #f7f8f9;
+  }
+  .tabBtn {
+    flex: 1; font-family: inherit; font-size: 14px; padding: 10px 8px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff;
+    color: var(--sub); cursor: pointer;
+  }
+  .tabBtn.active { background: #263238; color: #fff; border-color: #263238; }
+  .tabBtn .cnt { margin-left: 4px; font-size: 12px; opacity: .85; }
+  .empty { text-align: center; color: var(--sub); padding: 32px 0; }
+
+  #alert {
+    display: none; margin-bottom: 12px; padding: 16px; border-radius: 12px;
+    background: var(--ng); color: #fff; font-size: 18px; font-weight: bold;
+    text-align: center;
+  }
+  #alert.on { display: block; animation: pulse 1.6s ease-in-out 3; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+
+  #ok {
+    display: none; margin-bottom: 12px; padding: 14px; border-radius: 12px;
+    background: #e4f5ec; color: var(--ok); font-size: 16px; font-weight: bold;
+    text-align: center; border: 2px solid var(--ok);
+  }
+  #ok.on { display: block; }
+
+  .divider {
+    display: flex; align-items: center; gap: 8px; margin: 18px 0 10px;
+    color: var(--sub); font-size: 13px;
+  }
+  .divider::before, .divider::after {
+    content: ""; flex: 1; height: 1px; background: var(--line);
+  }
+
+  .item {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .item.ng { border: 2px solid var(--ng); }
+  .item.giveup { opacity: .7; }
+  .row1 { display: flex; align-items: center; gap: 10px; }
+  .subj {
+    font-size: 12px; font-weight: bold; color: var(--sub);
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px;
+    white-space: nowrap;
+  }
+  .name { flex: 1; font-size: 15px; }
+  .meta { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .badge {
+    font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 999px;
+    white-space: nowrap; margin-top: 4px; display: inline-block;
+  }
+  .badge.overdue { background: #fdeaec; color: var(--ng); }
+  .badge.today   { background: #fdeaec; color: var(--ng); }
+  .badge.soon    { background: #fff4e0; color: #8a5a1b; }
+  .pill {
+    font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 999px;
+    color: #fff; white-space: nowrap;
+  }
+  .pill.ok    { background: var(--ok); }
+  .pill.ng    { background: var(--ng); }
+  .pill.wait  { background: var(--wait); }
+  .pill.give  { background: var(--give); }
+
+  .actions { margin-top: 8px; display: flex; gap: 8px; }
+  .actions button {
+    font-family: inherit; font-size: 12px; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: #fff; color: var(--sub); cursor: pointer;
+  }
+  .actions button:hover { background: #f2f4f5; }
+  .actions button.danger { color: var(--ng); border-color: #f0c4c8; }
+
+  #loading { text-align: center; color: var(--sub); padding: 40px 0; }
+
+  /* ===== 自作タスク追加フォーム ===== */
+  #addTask {
+    margin: 14px 0 6px; background: #fff; border: 1px dashed var(--line);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  #addTask .cap2 { font-size: 13px; color: var(--sub); margin-bottom: 8px; }
+  #addTask .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  #addTask input[type=text] {
+    flex: 1; min-width: 140px; font-size: 14px; padding: 9px 10px;
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  #addTask input[type=date] {
+    font-size: 14px; padding: 9px 8px; border: 1px solid var(--line); border-radius: 8px;
+  }
+  #addTask button {
+    font-family: inherit; font-size: 14px; padding: 9px 14px; border-radius: 8px;
+    border: none; background: #263238; color: #fff; cursor: pointer;
+  }
+  .checkbox {
+    width: 20px; height: 20px; flex-shrink: 0; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="cap" id="appCap">提出物チェック - マイページ</div>
+    <div class="who" id="who">読み込み中...</div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button id="tabTodo" class="tabBtn active">やること<span class="cnt" id="cntTodo"></span></button>
+      <button id="tabDone" class="tabBtn">提出済み<span class="cnt" id="cntDone"></span></button>
+    </div>
+    <div id="alert"></div>
+    <div id="ok">✓ 再提出はありません</div>
+    <div id="loading">読み込み中...</div>
+    <div id="list"></div>
+
+    <div id="addTask" style="display:none">
+      <div class="cap2">📝 自分の課題を追加(先生には送られません)</div>
+      <div class="row">
+        <input type="text" id="taskText" maxlength="100" placeholder="例: 自主学習ノートを進める">
+        <input type="date" id="taskDue">
+        <button id="btnAddTask">追加</button>
+      </div>
+    </div>
+  </main>
+
+<script>
+let lastData = null;
+let viewTab = 'todo'; // 'todo' | 'done'
+
+function loadStatus() {
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(e => {
+      document.getElementById('loading').textContent = '読み込みに失敗しました: ' + e.message;
+    })
+    .getMyStatus();
+}
+
+// 「済」「完了(自分の課題)」「受付終了」だけを提出済みタブへ振り分ける。
+// 断念・未完了・未提出・再提出はすべて「やること」タブに残す。
+function isDoneStatus(it) {
+  return it.status === '済' || it.status === '完了' || it.status === '受付終了';
+}
+
+function statusPill(it) {
+  const p = document.createElement('span');
+  if (it.status === '再提出') { p.className = 'pill ng'; p.textContent = '再提出'; }
+  else if (it.status === '済') { p.className = 'pill ok'; p.textContent = '済 ' + it.label; }
+  else if (it.status === '断念') { p.className = 'pill give'; p.textContent = '提出しない'; }
+  else if (it.status === '受付終了') { p.className = 'pill give'; p.textContent = '受付終了'; }
+  else if (it.status === '完了') { p.className = 'pill ok'; p.textContent = '完了'; }
+  else if (it.status === '未完了') { p.className = 'pill wait'; p.textContent = '未完了'; }
+  else { p.className = 'pill wait'; p.textContent = '未提出'; }
+  return p;
+}
+
+function buildItem(it) {
+  const d = document.createElement('div');
+  d.className = 'item' + (it.status === '再提出' ? ' ng' : '') +
+                ((it.status === '断念' || it.status === '受付終了') ? ' giveup' : '');
+
+  const row1 = document.createElement('div');
+  row1.className = 'row1';
+
+  if (it.kind === 'custom') {
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'checkbox'; cb.checked = it.status === '完了';
+    cb.onchange = () => act('toggleMyTask', it.row);
+    row1.appendChild(cb);
+  } else {
+    const s = document.createElement('span');
+    s.className = 'subj';
+    s.textContent = it.subject + (it.daily ? ' 📅' : '');
+    row1.appendChild(s);
+  }
+
+  const n = document.createElement('div');
+  n.className = 'name';
+  n.textContent = it.name;
+  if (it.kind === 'material' && it.label && it.status !== '断念') {
+    const m = document.createElement('div');
+    m.className = 'meta';
+    m.textContent = '評価: ' + it.label + '(' + it.nth + '回目・' + it.date + ')';
+    n.appendChild(m);
+  }
+  if (it.dueText) {
+    const m2 = document.createElement('div');
+    m2.className = 'meta';
+    m2.textContent = '締切: ' + it.dueText;
+    n.appendChild(m2);
+  }
+  if (it.badge) {
+    const b = document.createElement('div');
+    b.className = 'badge ' + it.urgency;
+    b.textContent = it.badge;
+    n.appendChild(b);
+  }
+  row1.appendChild(n);
+  row1.appendChild(statusPill(it));
+  d.appendChild(row1);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  if (it.kind === 'material' && (it.status === '未' || it.status === '再提出') && !it.daily) {
+    const b = document.createElement('button');
+    b.className = 'danger';
+    b.textContent = '提出をあきらめる';
+    b.onclick = () => {
+      if (confirm('「' + it.name + '」の提出をあきらめますか?\n後からでも取り消せます。')) {
+        act('giveUpSubmission', it.materialCode);
+      }
+    };
+    actions.appendChild(b);
+  }
+  if (it.kind === 'material' && it.status === '断念' && it.row) {
+    const b = document.createElement('button');
+    b.textContent = '⟲ 元に戻す';
+    b.onclick = () => act('cancelMyGiveUp', it.row);
+    actions.appendChild(b);
+  }
+  if (it.kind === 'custom') {
+    const b = document.createElement('button');
+    b.className = 'danger';
+    b.textContent = '🗑 削除';
+    b.onclick = () => {
+      if (confirm('「' + it.name + '」を削除しますか?')) act('deleteMyTask', it.row);
+    };
+    actions.appendChild(b);
+  }
+  if (actions.children.length) d.appendChild(actions);
+
+  return d;
+}
+
+function act(fn, arg) {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = '更新中...';
+  google.script.run
+    .withSuccessHandler(() => loadStatus())
+    .withFailureHandler(e => alert('エラー: ' + e.message))
+    [fn](arg);
+}
+
+function render(data) {
+  lastData = data;
+  document.getElementById('loading').style.display = 'none';
+  if (!data.ok) {
+    document.getElementById('who').textContent = 'エラー';
+    document.getElementById('list').textContent = data.error;
+    return;
+  }
+  document.getElementById('who').textContent = data.cls + ' ' + data.name + ' さん';
+
+  const alertEl = document.getElementById('alert');
+  const okEl = document.getElementById('ok');
+  alertEl.classList.remove('on'); okEl.classList.remove('on');
+  if (data.resubmit > 0) {
+    alertEl.textContent = '⚠ 再提出が ' + data.resubmit + ' 件あります';
+    alertEl.classList.add('on');
+  } else {
+    okEl.classList.add('on');
+  }
+
+  // 「済」「完了」「受付終了」だけを提出済みタブへ。それ以外(未提出・再提出・断念・未完了)は
+  // 期限の有無にかかわらず「やること」タブに残す。
+  const todoItems = data.items.filter(it => !isDoneStatus(it));
+  const doneItems = data.items.filter(it => isDoneStatus(it));
+
+  const tabTodo = document.getElementById('tabTodo');
+  const tabDone = document.getElementById('tabDone');
+  document.getElementById('cntTodo').textContent = todoItems.length ? '(' + todoItems.length + ')' : '';
+  document.getElementById('cntDone').textContent = doneItems.length ? '(' + doneItems.length + ')' : '';
+  tabTodo.classList.toggle('active', viewTab === 'todo');
+  tabDone.classList.toggle('active', viewTab === 'done');
+
+  const list = document.getElementById('list');
+  const addTaskEl = document.getElementById('addTask');
+  // list.innerHTML=''を実行するとき、addTaskElがlistの子になっていると
+  // ノードごと消えてしまう(以前実際に起きた不具合)。そのため清掃前に必ず
+  // listの外(元のHTML上の位置=main直下)へ退避させてからinnerHTML=''し、
+  // そのあと本来入れたい位置(区切り線の直前)へ差し込み直す。
+  if (addTaskEl.parentNode === list) {
+    list.parentNode.insertBefore(addTaskEl, list.nextSibling);
+  }
+  list.innerHTML = '';
+
+  if (viewTab === 'todo') {
+    addTaskEl.style.display = 'block';
+    // 急ぎ(bucket -1/0/1)の項目が1件もない場合は、区切り線自体が出ないので
+    // 「自分の課題を追加」フォームは一番上に表示する。急ぎの項目がある場合は
+    // 従来どおり、急ぎ→急ぎではない、の境目(区切り線の直前)に差し込む。
+    const hasUrgent = todoItems.some(it => it.bucket <= 1);
+    let addTaskPlaced = false;
+    if (!hasUrgent) {
+      list.appendChild(addTaskEl);
+      addTaskPlaced = true;
+    }
+    let prevBucket = null;
+    let dividerPlaced = false;
+    todoItems.forEach(it => {
+      if (prevBucket !== null && prevBucket <= 1 && it.bucket >= 2 && !dividerPlaced) {
+        // 急ぎ→急ぎではない、の境目に「自分の課題を追加」フォームを差し込んでから区切り線を入れる
+        list.appendChild(addTaskEl);
+        addTaskPlaced = true;
+        const div = document.createElement('div');
+        div.className = 'divider';
+        div.textContent = 'ここからは急ぎではありません';
+        list.appendChild(div);
+        dividerPlaced = true;
+      }
+      list.appendChild(buildItem(it));
+      prevBucket = it.bucket;
+    });
+    if (!addTaskPlaced) {
+      // 全部急ぎで区切り線が出なかった場合は末尾に置く
+      list.appendChild(addTaskEl);
+    }
+    if (!todoItems.length) {
+      const p = document.createElement('div');
+      p.className = 'empty';
+      p.textContent = 'やることはありません 🎉';
+      list.appendChild(p);
+    }
+  } else {
+    addTaskEl.style.display = 'none';
+    if (!doneItems.length) {
+      const p = document.createElement('div');
+      p.className = 'empty';
+      p.textContent = 'まだ提出済みのものはありません';
+      list.appendChild(p);
+    } else {
+      // 受付終了はタブ内でも後方に回す(getMyStatus側のbucketソートに加えて、
+      // ここでも明示的にソートしておくと将来の並び替え変更に強い)
+      const sorted = doneItems.slice().sort((a, b) =>
+        (a.status === '受付終了' ? 1 : 0) - (b.status === '受付終了' ? 1 : 0));
+      sorted.forEach(it => list.appendChild(buildItem(it)));
+    }
+  }
+}
+
+document.getElementById('tabTodo').onclick = () => { viewTab = 'todo'; if (lastData) render(lastData); };
+document.getElementById('tabDone').onclick = () => { viewTab = 'done'; if (lastData) render(lastData); };
+
+document.getElementById('btnAddTask').onclick = () => {
+  const text = document.getElementById('taskText').value.trim();
+  if (!text) return;
+  const due = document.getElementById('taskDue').value; // "" か "YYYY-MM-DD"
+  document.getElementById('taskText').value = '';
+  document.getElementById('taskDue').value = '';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = '追加中...';
+  google.script.run
+    .withSuccessHandler(() => loadStatus())
+    .withFailureHandler(e => alert('エラー: ' + e.message))
+    .addMyTask(text, due);
+};
+
+loadStatus();
+google.script.run.withSuccessHandler(v => {
+  const t = document.createElement('div');
+  t.id = 'verTag';
+  t.style.cssText = 'text-align:center;font-size:11px;color:#9aa5ad;padding:8px';
+  t.textContent = v;
+  document.querySelector('main').appendChild(t);
+}).getAppVersion();
+// 設定シート「表示名」があれば見出しに出す(例: 〇〇中学校 R7入学生 - マイページ)
+google.script.run.withSuccessHandler(name => {
+  if (name) document.getElementById('appCap').textContent = name + ' - マイページ';
+}).getDisplayName();
+</script>
+
+<script>
+  google.script.run.withSuccessHandler(function (msg) {
+    if (!msg) return;
+    var b = document.createElement('div');
+    b.textContent = msg;
+    b.style.cssText = 'background:#e65100;color:#fff;text-align:center;' +
+      'padding:6px 10px;font-weight:bold;position:sticky;top:0;z-index:9999;';
+    document.body.insertBefore(b, document.body.firstChild);
+  }).getBuildBanner();
+</script>
+
+</body>
+</html>

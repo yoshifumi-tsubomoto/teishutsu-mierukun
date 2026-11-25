@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: "BIZ UDPGothic", "Yu Gothic UI", sans-serif; background: #e9ecef; }
+  .bar {
+    padding: 12px 16px; background: #fff; display: flex; gap: 8px;
+    flex-wrap: wrap; align-items: center; position: sticky; top: 0; z-index: 5;
+    border-bottom: 1px solid #ccc;
+  }
+  h1 { font-size: 17px; margin-right: 8px; }
+  button, select, input[type=number] {
+    padding: 8px 12px; font-size: 14px; border: 2px solid #263238;
+    background: #fff; border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  select, input[type=number] { border-width: 1px; border-color: #9aa5ad; }
+  input[type=number] { width: 64px; }
+  button.active { background: #263238; color: #fff; }
+  .hint { font-size: 12px; color: #495057; width: 100%; }
+  .adj { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+
+  /* ===== ラベル用紙(A4実寸) ===== */
+  .page {
+    width: 210mm; height: 297mm; background: #fff; position: relative;
+    margin: 8px auto; box-shadow: 0 1px 4px rgba(0,0,0,.25); overflow: hidden;
+    page: label; /* 専用の@pageルール(余白0)を適用 */
+  }
+  .lab {
+    position: absolute; display: flex; align-items: center; gap: 2mm;
+    padding: 1mm 1.5mm; overflow: hidden;
+  }
+  .lab .qr { flex-shrink: 0; }
+  .lab .qr img, .lab .qr canvas { display: block; }
+  .lab .tx { min-width: 0; }
+  .lab .nm { font-weight: bold; line-height: 1.15; margin-top: 3mm; } /* 氏名(最大) */
+  .lab .gk  { color: #333; line-height: 1.15; }           /* 学年組番号 */
+  .guide .lab { outline: 1px dashed #bbb; }
+
+  /* ===== 教材一覧表 ===== */
+  #matWrap { background: #fff; margin: 8px auto; padding: 10mm; width: 210mm; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: 1px solid #999; padding: 6px 10px; font-size: 13px;
+    text-align: left; vertical-align: middle; }
+  th { background: #e8eaed; }
+  td.qrcell { width: 100px; text-align: center; }
+  td.qrcell .qbox { display: flex; justify-content: center; align-items: center; }
+  thead { display: table-header-group; } /* 改ページ後も見出し行を繰り返す */
+  td .code { font-size: 10px; color: #666; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+
+  @media print {
+    body { background: #fff; }
+    .bar { display: none; }
+    .page { margin: 0; box-shadow: none; page-break-after: always; }
+    .guide .lab { outline: none; }
+    #matWrap { margin: 0; padding: 0; width: 190mm; }
+  }
+  @page { size: A4; margin: 10mm; }        /* 既定: 教材一覧表など通常コンテンツ用(印字不能領域を避ける) */
+  @page label { size: A4; margin: 0; }     /* ラベルシート専用: mm計算が用紙全体基準のため余白なし */
+  @media print { #verTag { display: none; } } /* バージョン表示が印刷に混ざり、用紙がズレて余分な1枚が
+    出ることがあるため印刷時は非表示にする */
+</style>
+</head>
+<body>
+  <div class="bar">
+    <h1 id="appH1">QRコード印刷</h1>
+    <button id="bStu" class="active">生徒ラベル(シール)</button>
+    <button id="bMat">教材一覧表</button>
+
+    <span id="stuOpts">
+      <select id="fStuGrade"><option value="">学年: すべて</option></select>
+      <select id="fStuCls"><option value="">組: すべて</option></select>
+      <select id="sheetType">
+        <option value="a65">エーワン72265(65面 38.1×21.2)</option>
+        <option value="a44">エーワン44面(48.3×25.4)</option>
+        <option value="a24">エーワン24面(70×33.9)</option>
+      </select>
+      <span class="adj">位置調整(mm) 上<input type="number" id="offT" value="0" step="0.5">
+        左<input type="number" id="offL" value="0" step="0.5"></span>
+      <span class="adj">1人あたり<input type="number" id="copies" value="1" min="1" max="20" step="1" style="width:48px">枚</span>
+    </span>
+    <span id="matOpts" style="display:none">
+      <select id="fGrade"><option value="">学年: すべて</option></select>
+      <select id="fCls"><option value="">対象組: すべて</option></select>
+      <select id="fSubject"><option value="">教科: すべて</option></select>
+      <select id="fName"><option value="">教材名: すべて</option></select>
+    </span>
+
+    <button onclick="window.print()">🖨 印刷</button>
+    <span class="hint">
+      【重要】印刷ダイアログで「倍率: 100%(実際のサイズ)」「余白: デフォルト」
+      「ヘッダーとフッター: OFF」に設定(「余白:なし」は選ばない)。
+      ズレるときは位置調整(mm)で微調整 →
+      普通紙で試し刷りしてからラベル紙をセット
+    </span>
+  </div>
+  <div id="out">読み込み中...</div>
+
+<script>
+let data = null, kind = 'students';
+
+/* ===== ラベル用紙の規格(mm) =====
+   w/h: ラベル1枚, cols/rows: 面付け, mt/ml: 上/左マージン, gx/gy: ラベル間隔 */
+const SHEETS = {
+  a44: { w: 48.3, h: 25.4, cols: 4, rows: 11, mt: 8.8,  ml: 8.4,  gx: 0,    gy: 0,
+         qr: 19, nm: 4.2, gk: 3.15 },
+  a65: { w: 38.1, h: 21.2, cols: 5, rows: 13, mt: 10.92, ml: 4.75, gx: 2.5, gy: 0,
+         qr: 16, nm: 3.4, gk: 2.65 },
+  a24: { w: 70,   h: 33.9, cols: 3, rows: 8,  mt: 13.2, ml: 0,    gx: 0,    gy: 0,
+         qr: 25, nm: 5.6, gk: 3.75 },
+};
+
+function fillSelect(sel, values, prefix) {
+  const uniq = [...new Set(values.filter(v => v !== '' && v != null))]
+    .sort((a, b) => String(a).localeCompare(String(b), 'ja', { numeric: true }));
+  uniq.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = prefix + ': ' + v;
+    sel.appendChild(o);
+  });
+}
+
+function initFilters() {
+  fillSelect(document.getElementById('fStuGrade'), data.students.map(s => s.grade), '学年');
+  fillSelect(document.getElementById('fStuCls'),   data.students.map(s => s.cls),   '組');
+  fillSelect(document.getElementById('fGrade'),   data.materials.map(m => m.grade),   '学年');
+  const clsValues = data.materials.flatMap(m => m.cls ? m.cls.split(',') : []);
+  fillSelect(document.getElementById('fCls'),     clsValues,                          '対象組');
+  fillSelect(document.getElementById('fSubject'), data.materials.map(m => m.subject), '教科');
+  fillSelect(document.getElementById('fName'),    data.materials.map(m => m.name),    '教材名');
+  ['fStuGrade','fStuCls','sheetType','offT','offL','copies','fGrade','fCls','fSubject','fName']
+    .forEach(id => document.getElementById(id).onchange = render);
+}
+
+/* ===== 生徒ラベル(規格寸法にmm単位で配置) ===== */
+function renderStudents() {
+  const g = document.getElementById('fStuGrade').value;
+  const c = document.getElementById('fStuCls').value;
+  const sp = SHEETS[document.getElementById('sheetType').value];
+  const offT = parseFloat(document.getElementById('offT').value) || 0;
+  const offL = parseFloat(document.getElementById('offL').value) || 0;
+
+  const filtered = data.students.filter(s =>
+    (!g || s.grade === g) && (!c || s.cls === c));
+  const copies = Math.max(1, parseInt(document.getElementById('copies').value, 10) || 1);
+  // 1人あたりcopies枚、同じ人の分は連続して並ぶようにする
+  const list = [];
+  filtered.forEach(s => { for (let i = 0; i < copies; i++) list.push(s); });
+
+  const out = document.getElementById('out');
+  out.innerHTML = '';
+  const perPage = sp.cols * sp.rows;
+
+  for (let p = 0; p < Math.ceil(list.length / perPage); p++) {
+    const page = document.createElement('div');
+    page.className = 'page guide';
+    list.slice(p * perPage, (p + 1) * perPage).forEach((s, idx) => {
+      const col = idx % sp.cols, row = Math.floor(idx / sp.cols);
+      const d = document.createElement('div');
+      d.className = 'lab';
+      d.style.width  = sp.w + 'mm';
+      d.style.height = sp.h + 'mm';
+      d.style.left   = (offL + sp.ml + col * (sp.w + sp.gx)) + 'mm';
+      d.style.top    = (offT + sp.mt + row * (sp.h + sp.gy)) + 'mm';
+
+      const q = document.createElement('div');
+      q.className = 'qr';
+      q.style.width = q.style.height = sp.qr + 'mm';
+
+      const t = document.createElement('div');
+      t.className = 'tx';
+      const gk = document.createElement('div');
+      gk.className = 'gk'; gk.style.fontSize = sp.gk + 'mm';
+      gk.textContent = s.gakkyu;                             // 1行目: 学年組番号(例 1年A組1番)
+      const nm = document.createElement('div');
+      nm.className = 'nm'; nm.style.fontSize = sp.nm + 'mm';
+      nm.textContent = s.name;                              // 2行目: 氏名
+      t.append(gk, nm);
+
+      d.append(q, t);
+      page.appendChild(d);
+      new QRCode(q, { text: s.id, width: 256, height: 256,
+                      correctLevel: QRCode.CorrectLevel.M });
+      const img = q.querySelector('img'), cv = q.querySelector('canvas');
+      [img, cv].forEach(el => {
+        if (el) { el.style.width = sp.qr + 'mm'; el.style.height = sp.qr + 'mm'; }
+      });
+    });
+    out.appendChild(page);
+  }
+  if (!list.length) out.textContent = '該当する生徒がいません';
+}
+
+/* ===== 教材一覧表 ===== */
+function renderMaterials() {
+  const g = document.getElementById('fGrade').value;
+  const cl = document.getElementById('fCls').value;
+  const s = document.getElementById('fSubject').value;
+  const n = document.getElementById('fName').value;
+  const out = document.getElementById('out');
+  out.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.id = 'matWrap';
+  const tbl = document.createElement('table');
+  tbl.innerHTML = '<thead><tr><th>学年</th><th>対象組</th><th>教科</th><th>教材名</th><th>範囲</th><th>QRコード</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  data.materials
+    .filter(m => (!g || m.grade === g) &&
+                 (!cl || !m.cls || m.cls.split(',').indexOf(cl) !== -1) &&
+                 (!s || m.subject === s) && (!n || m.name === n))
+    .forEach(m => {
+      const tr = document.createElement('tr');
+      const cells = [m.grade, m.cls || '全組', m.subject, m.name, m.range].map(v => {
+        const td = document.createElement('td'); td.textContent = v || ''; return td;
+      });
+      const qtd = document.createElement('td');
+      qtd.className = 'qrcell';
+      const qbox = document.createElement('div');
+      qbox.className = 'qbox';
+      const code = document.createElement('div');
+      code.className = 'code'; code.textContent = m.id;
+      qtd.append(qbox, code);
+      cells.forEach(td => tr.appendChild(td));
+      tr.appendChild(qtd);
+      tb.appendChild(tr);
+      new QRCode(qbox, { text: m.id, width: 88, height: 88,
+                         correctLevel: QRCode.CorrectLevel.M });
+    });
+  tbl.appendChild(tb);
+  wrap.appendChild(tbl);
+  out.appendChild(wrap);
+}
+
+function render() {
+  document.getElementById('stuOpts').style.display = kind === 'students'  ? '' : 'none';
+  document.getElementById('matOpts').style.display = kind === 'materials' ? '' : 'none';
+  document.getElementById('bStu').classList.toggle('active', kind === 'students');
+  document.getElementById('bMat').classList.toggle('active', kind === 'materials');
+  if (kind === 'students') renderStudents(); else renderMaterials();
+}
+
+document.getElementById('bStu').onclick = () => { kind = 'students'; render(); };
+document.getElementById('bMat').onclick = () => { kind = 'materials'; render(); };
+// 教員画面の教材タブから「?page=print&kind=materials」で来たら、教材一覧表を最初に開く
+google.script.url.getLocation(loc => {
+  if (loc && loc.parameter && loc.parameter.kind === 'materials') {
+    kind = 'materials';
+    if (data) render();   // データ読み込みが先に終わっていたら描き直す
+  }
+});
+
+google.script.run
+  .withSuccessHandler(d => { data = d; initFilters(); render(); })
+  .withFailureHandler(e => {
+    document.getElementById('out').textContent = 'エラー: ' + e.message;
+  })
+  .getPrintData();
+google.script.run.withSuccessHandler(v => {
+  const t = document.createElement('div');
+  t.id = 'verTag';
+  t.style.cssText = 'text-align:center;font-size:11px;color:#9aa5ad;padding:8px';
+  t.textContent = v;
+  document.body.appendChild(t);
+}).getAppVersion();
+// 設定シート「表示名」があれば見出しに添える(どの学年のファイルの印刷画面かわかるように)
+google.script.run.withSuccessHandler(name => {
+  if (name) document.getElementById('appH1').textContent = 'QRコード印刷(' + name + ')';
+}).getDisplayName();
+</script>
+</body>
+</html>
